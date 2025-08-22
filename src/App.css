@@ -1,0 +1,174 @@
+/* src/App.css */
+#app-container {
+  position: relative; 
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--background-color);
+}
+
+/* --- 左侧聚合布局 --- */
+.ui-top-left-cluster {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+.ui-top-left-cluster > * {
+  pointer-events: auto;
+}
+
+/* --- 用户信息栏 --- */
+.user-info-bar {
+  background: var(--panel-color);
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  gap: 0;
+}
+.user-info-bar .separator {
+  color: var(--border-color);
+  margin: 0 8px;
+}
+.user-info-bar button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.user-info-bar button:hover:not(:disabled) {
+  color: var(--primary-color);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+.user-info-bar button:disabled {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- 搜索框 --- */
+#searchContainer {
+  position: relative;
+  width: 300px;
+  height: 40px;
+  background-color: var(--panel-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+}
+#searchInput {
+  width: 100%;
+  height: 100%;
+  padding: 0 16px;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--text-primary);
+  text-align: center;
+}
+#searchInput::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+#searchResults {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  width: 100%;
+  background: var(--panel-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1001;
+  box-shadow: var(--shadow-md);
+}
+.search-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.search-item:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* --- 右侧栏布局 --- */
+.ui-right-column {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: 320px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--panel-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 10px;
+  pointer-events: auto;
+}
+
+#stats {
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-around;
+}
+.stat-item { text-align: center; }
+.stat-number { display: block; font-size: 24px; font-weight: 700; color: var(--primary-color); }
+.stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.sidebar-content-wrapper {
+  flex-grow: 1;
+  overflow: hidden;
+  border-top: 1px solid var(--border-color);
+  margin-top: 10px;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease-in-out;
+}
+.sidebar-content-wrapper.open {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* --- 地图和工具提示 --- */
+.leaflet-container { background: var(--map-background); }
+.custom-tooltip {
+  background-color: var(--panel-color);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.leaflet-tooltip::before { display: none !important; }
+.leaflet-container *:focus { outline: none !important; }

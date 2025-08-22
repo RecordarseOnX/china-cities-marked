@@ -1,0 +1,62 @@
+/* src/index.css */
+
+/* --- 1. 浅色模式 (白色背景) --- */
+:root {
+  --font-sans: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  
+  /* 基础颜色 */
+  --background-color: #f4f7fa; /* 页面主背景可以保留柔和的灰色 */
+  --panel-color: #ffffff;
+  --primary-color: #3b82f6;
+  
+  /* 文字颜色 */
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  
+  /* 边框和阴影 */
+  --border-color: #e5e7eb;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  
+  /* 
+    【色彩方案升级】
+    浅色模式：纯白底图 + 深灰色线条
+  */
+  --map-background: rgb(255, 255, 255);
+  --map-line-color-rgb: 55, 65, 81; /* 一个沉稳的深灰色 (Tailwind Gray-700) */
+}
+
+/* --- 2. 深色模式 (黑色背景) --- */
+html.dark {
+  --background-color: #111827; /* 页面主背景也调整为更深的灰色 */
+  --panel-color: #1f2937;
+  --primary-color: #4299e1;
+  
+  --text-primary: #edf2f7;
+  --text-secondary: #a0aec0;
+  
+  --border-color: #4b5563;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  
+  /* 
+    【色彩方案升级】
+    深色模式：纯黑底图 + 浅灰色线条
+  */
+  --map-background: rgb(0, 0, 0);
+  --map-line-color-rgb: 156, 163, 175; /* 一个清晰的浅灰色 (Tailwind Gray-400) */
+}
+
+/* 3. 全局样式 (无改动) */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

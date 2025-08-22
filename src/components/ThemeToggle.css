@@ -1,0 +1,21 @@
+/* src/components/ThemeToggle.css */
+
+.theme-toggle-button {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 40px;
+  height: 40px; /* 确保和 user-info-bar 的高度接近 */
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-button:hover {
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+  background-color: rgba(59, 130, 246, 0.1);
+}
