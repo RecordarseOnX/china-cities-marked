@@ -21,7 +21,16 @@
 .form-group { display: flex; flex-direction: column; }
 .form-group label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
 
-/* --- 【问题修复的关键】 --- */
+/* 1. 为有图片的预览区添加可点击的鼠标样式 */
+.photo-area.clickable {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.photo-area.clickable:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
 .photo-area {
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -33,15 +42,8 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-color);
-  /* 为了让 contain 模式下的留白区域颜色与主题一致，背景色很重要 */
-  background-color: var(--background-color); 
 }
-.photo-area img {
-  width: 100%;
-  height: 100%;
-  /* 将 object-fit 从 'cover' 修改为 'contain' */
-  object-fit: contain; 
-}
+.photo-area img { width: 100%; height: 100%; object-fit: contain; }
 .photo-placeholder { color: var(--text-secondary); font-size: 14px; }
 
 .sidebar-footer {
@@ -59,7 +61,7 @@
 .button-danger { background-color: #ef4444; color: white; }
 .button-danger:hover { background-color: #dc2626; }
 
-/* --- 自定义输入框样式 (无改动) --- */
+/* --- 全新的自定义输入框样式 --- */
 .input-wrapper {
   position: relative;
   display: flex;
@@ -94,7 +96,11 @@
   opacity: 0;
   cursor: pointer;
 }
+
+/* 隐藏原生的文件上传按钮 */
 .file-input-hidden { display: none; }
+
+/* 自定义的文件上传按钮/区域 */
 .file-input-label {
   display: flex;
   align-items: center;
@@ -108,6 +114,12 @@
 .file-input-label:hover {
   border-color: var(--primary-color);
   background-color: rgba(59, 130, 246, 0.05);
+}
+/* 2. 为拖拽状态下的文件上传区域添加视觉反馈 */
+.file-input-label.dragging {
+  border-color: var(--primary-color);
+  background-color: rgba(59, 130, 246, 0.1);
+  border-style: solid;
 }
 .file-input-label svg {
   color: var(--text-secondary);

@@ -17,5 +17,11 @@
 .theme-toggle-button:hover {
   color: var(--text-primary);
   border-color: var(--primary-color);
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: rgba(145, 223, 239, 0.1);
+}
+
+.theme-toggle-button.active {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  background-color: rgba(145, 223, 239, 0.1);
 }

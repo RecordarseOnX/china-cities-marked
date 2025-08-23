@@ -1,10 +1,28 @@
 // src/components/ThemeToggle.jsx
 
 import React from 'react';
-import './ThemeToggle.css'; // 我们将为它创建专属样式
+import './ThemeToggle.css';
 
-function ThemeToggle({ theme, toggleTheme }) {
+// 简洁风格调色板图标
+const PaletteIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+    {/* 左上 */}
+    <rect x="4" y="4" width="6" height="6" fill="white" stroke="currentColor" strokeWidth="1.5"/>
+    {/* 右上 */}
+    <rect x="14" y="4" width="6" height="6" fill="white" stroke="currentColor" strokeWidth="1.5"/>
+    {/* 左下 */}
+    <rect x="4" y="14" width="6" height="6" fill="white" stroke="currentColor" strokeWidth="1.5"/>
+    {/* 右下 */}
+    <rect x="14" y="14" width="6" height="6" fill="white" stroke="currentColor" strokeWidth="1.5"/>
+  </svg>
+);
+
+
+
+
+function ThemeToggle({ theme, toggleTheme, colorMode, toggleColorMode }) {
   return (
+    <>
     <button onClick={toggleTheme} className="theme-toggle-button" aria-label="切换主题">
       {theme === 'light' ? (
         // 太阳图标 (浅色模式)
@@ -14,6 +32,10 @@ function ThemeToggle({ theme, toggleTheme }) {
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
       )}
     </button>
+          <button onClick={toggleColorMode} className={`theme-toggle-button ${colorMode === 'single' ? 'active' : ''}`} aria-label="切换地图颜色模式">
+        <PaletteIcon />
+      </button>
+    </>
   );
 }
 

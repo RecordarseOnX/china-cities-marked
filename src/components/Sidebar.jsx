@@ -7,18 +7,15 @@ const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 const UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 
-const CalendarIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-);
-const UploadIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-);
+const CalendarIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> );
+const UploadIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg> );
 
-function Sidebar({ cityData, onSave, onUnmark }) {
+function Sidebar({ cityData, onSave, onUnmark, onImageClick }) {
   const [visitDate, setVisitDate] = useState('');
   const [photoUrl, setPhotoUrl] = useState(null);
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (cityData) {
@@ -27,19 +24,16 @@ function Sidebar({ cityData, onSave, onUnmark }) {
     }
     setNewPhotoFile(null);
     setIsUploading(false);
+    setIsDragging(false);
   }, [cityData]);
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setNewPhotoFile(e.target.files[0]);
+  const handleFileChange = (file) => {
+    if (file && file.type.startsWith('image/')) {
+      setNewPhotoFile(file);
     }
   };
 
   const handleSave = async () => {
-    if (!CLOUD_NAME || !UPLOAD_PRESET) {
-      alert("错误：Cloudinary 配置丢失！请检查您的 .env.local 文件并重启服务器。");
-      return;
-    }
     let uploadedPhotoUrl = photoUrl;
     if (newPhotoFile) {
       setIsUploading(true);
@@ -50,10 +44,11 @@ function Sidebar({ cityData, onSave, onUnmark }) {
       try {
         const response = await fetch(UPLOAD_URL, { method: 'POST', body: formData });
         const data = await response.json();
-        if (data.error) {
-          throw new Error(`Cloudinary 错误: ${data.error.message}`);
+        if (data.secure_url) {
+          uploadedPhotoUrl = data.secure_url;
+        } else {
+          throw new Error(data.error.message || '图片上传失败');
         }
-        uploadedPhotoUrl = data.secure_url;
       } catch (error) {
         alert(error.message);
         setIsUploading(false);
@@ -61,9 +56,6 @@ function Sidebar({ cityData, onSave, onUnmark }) {
       }
       setIsUploading(false);
     }
-    
-    // --- 【问题修复的关键】 ---
-    // 将 payload 中的 cityName 修改为 city_name，与数据库列名保持一致
     onSave({
       city_name: cityData.name,
       visit_date: visitDate || null,
@@ -76,10 +68,28 @@ function Sidebar({ cityData, onSave, onUnmark }) {
       onUnmark(cityData.name);
     }
   };
+
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); const files = e.dataTransfer.files; if (files && files[0]) { handleFileChange(files[0]); } };
   
   if (!cityData) return null;
 
-  const currentPhoto = newPhotoFile ? URL.createObjectURL(newPhotoFile) : photoUrl;
+  // 用于在侧边栏小窗口显示的图片源
+  const imageSourceForDisplay = newPhotoFile ? URL.createObjectURL(newPhotoFile) : photoUrl;
+
+  // --- 【关键修复】用于点击放大时传递的图片源 ---
+  // 这个函数会移除 Cloudinary URL 中的所有变换参数
+  const getOriginalCloudinaryUrl = (url) => {
+    if (!url || !url.includes('/upload/')) return url;
+    const parts = url.split('/upload/');
+    // parts[1] 可能是 'w_1000,c_limit/v12345/abcde.jpg'
+    // 我们需要找到版本号（v开头）或直接找到文件名
+    const publicIdWithVersion = parts[1].substring(parts[1].indexOf('v'));
+    return `${parts[0]}/upload/${publicIdWithVersion}`;
+  };
+  const imageSourceForLightbox = newPhotoFile ? URL.createObjectURL(newPhotoFile) : getOriginalCloudinaryUrl(cityData.photo_url);
+  // ----------------------------------------------
 
   return (
     <>
@@ -94,11 +104,14 @@ function Sidebar({ cityData, onSave, onUnmark }) {
         </div>
         <div className="form-group">
           <label>照片 (4:3)</label>
-          <div className="photo-area">
-            {currentPhoto ? <img src={currentPhoto} alt={cityData.name} /> : <div className="photo-placeholder">无照片</div>}
+          <div 
+            className={`photo-area ${imageSourceForDisplay ? 'clickable' : ''}`} 
+            onClick={() => imageSourceForLightbox && onImageClick(imageSourceForLightbox)}
+          >
+            {imageSourceForDisplay ? <img src={imageSourceForDisplay} alt={cityData.name} /> : <div className="photo-placeholder">无照片</div>}
           </div>
-          <input type="file" id="file-upload" accept="image/*" onChange={handleFileChange} className="file-input-hidden" />
-          <label htmlFor="file-upload" className="file-input-label">
+          <input type="file" id="file-upload" accept="image/*" onChange={(e) => handleFileChange(e.target.files[0])} className="file-input-hidden" />
+          <label htmlFor="file-upload" className={`file-input-label ${isDragging ? 'dragging' : ''}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
             <UploadIcon />
             <span className="file-name">{newPhotoFile ? newPhotoFile.name : '选择或拖拽文件'}</span>
           </label>
@@ -106,13 +119,9 @@ function Sidebar({ cityData, onSave, onUnmark }) {
       </div>
       <div className="sidebar-footer">
         {cityData.isVisited ? (
-          <button onClick={handleSave} disabled={isUploading} className="button-primary">
-            {isUploading ? '上传中...' : '更新标记'}
-          </button>
+          <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '更新标记'}</button>
         ) : (
-          <button onClick={handleSave} disabled={isUploading} className="button-primary">
-            {isUploading ? '上传中...' : '确认标记'}
-          </button>
+          <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '确认标记'}</button>
         )}
         {cityData.isVisited && <button onClick={handleUnmarkCity} className="button-danger">取消标记</button>}
       </div>
