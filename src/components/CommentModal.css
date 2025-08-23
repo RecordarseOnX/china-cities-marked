@@ -1,0 +1,71 @@
+/* src/components/CommentModal.css */
+
+.comment-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(5px);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.comment-modal-content {
+  background-color: var(--panel-color);
+  width: 90%;
+  max-width: 500px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+  animation: slideUp 0.3s ease-out;
+  display: flex; /* 使用 flex 布局方便管理 */
+  flex-direction: column;
+}
+
+.comment-modal-content h4 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.comment-modal-content textarea {
+  width: 100%;
+  height: 150px;
+  padding: 12px;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  /* 【关键修复】禁止用户缩放 */
+  resize: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+  /* 【关键修复】确保 box-sizing 正确，防止突出 */
+  box-sizing: border-box; 
+}
+.comment-modal-content textarea:focus { border-color: var(--primary-color); }
+
+/* 【关键】新的底部栏样式 */
+.modal-footer {
+  display: flex;
+  justify-content: space-between; /* 两端对齐 */
+  align-items: center;
+  margin-top: 12px;
+}
+
+.char-counter {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.char-counter.exceeded { color: #ef4444; }

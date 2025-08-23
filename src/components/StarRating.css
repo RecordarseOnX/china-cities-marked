@@ -1,0 +1,21 @@
+/* src/components/StarRating.css */
+
+.star-rating-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.star {
+  cursor: pointer;
+  color: var(--border-color); /* 未选中时的颜色 */
+  transition: color 0.2s, transform 0.2s;
+}
+
+.star.filled {
+  color: #f59e0b; /* 金色 */
+}
+
+.star:hover {
+  transform: scale(1.2);
+}

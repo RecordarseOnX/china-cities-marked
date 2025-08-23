@@ -7,10 +7,20 @@ const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 const UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 
-const CalendarIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> );
-const UploadIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg> );
+// 内联的 SVG 图标组件
+const CalendarIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+);
+const UploadIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+);
+// 新增：点评图标
+const CommentIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+);
 
-function Sidebar({ cityData, onSave, onUnmark, onImageClick }) {
+// 接收一个新的 onCommentClick prop
+function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
   const [visitDate, setVisitDate] = useState('');
   const [photoUrl, setPhotoUrl] = useState(null);
   const [newPhotoFile, setNewPhotoFile] = useState(null);
@@ -46,8 +56,8 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick }) {
         const data = await response.json();
         if (data.secure_url) {
           uploadedPhotoUrl = data.secure_url;
-        } else {
-          throw new Error(data.error.message || '图片上传失败');
+        } else { 
+          throw new Error(data.error.message || '图片上传失败'); 
         }
       } catch (error) {
         alert(error.message);
@@ -71,29 +81,38 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick }) {
 
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); const files = e.dataTransfer.files; if (files && files[0]) { handleFileChange(files[0]); } };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleFileChange(files[0]);
+    }
+  };
   
   if (!cityData) return null;
 
-  // 用于在侧边栏小窗口显示的图片源
   const imageSourceForDisplay = newPhotoFile ? URL.createObjectURL(newPhotoFile) : photoUrl;
 
-  // --- 【关键修复】用于点击放大时传递的图片源 ---
-  // 这个函数会移除 Cloudinary URL 中的所有变换参数
   const getOriginalCloudinaryUrl = (url) => {
     if (!url || !url.includes('/upload/')) return url;
     const parts = url.split('/upload/');
-    // parts[1] 可能是 'w_1000,c_limit/v12345/abcde.jpg'
-    // 我们需要找到版本号（v开头）或直接找到文件名
     const publicIdWithVersion = parts[1].substring(parts[1].indexOf('v'));
     return `${parts[0]}/upload/${publicIdWithVersion}`;
   };
   const imageSourceForLightbox = newPhotoFile ? URL.createObjectURL(newPhotoFile) : getOriginalCloudinaryUrl(cityData.photo_url);
-  // ----------------------------------------------
 
   return (
     <>
-      <div className="sidebar-header"><h3>{cityData.name}</h3></div>
+      <div className="sidebar-header">
+        <h3>{cityData.name}</h3>
+        {/* 【关键】只有当城市已被标记时，才显示点评按钮 */}
+        {cityData.isVisited && (
+          <button onClick={() => onCommentClick(cityData)} className="comment-button" aria-label="添加或编辑点评">
+            <CommentIcon />
+          </button>
+        )}
+      </div>
       <div className="sidebar-body">
         <div className="form-group">
           <label>初次到达时间</label>
@@ -111,7 +130,11 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick }) {
             {imageSourceForDisplay ? <img src={imageSourceForDisplay} alt={cityData.name} /> : <div className="photo-placeholder">无照片</div>}
           </div>
           <input type="file" id="file-upload" accept="image/*" onChange={(e) => handleFileChange(e.target.files[0])} className="file-input-hidden" />
-          <label htmlFor="file-upload" className={`file-input-label ${isDragging ? 'dragging' : ''}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+          <label 
+            htmlFor="file-upload" 
+            className={`file-input-label ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+          >
             <UploadIcon />
             <span className="file-name">{newPhotoFile ? newPhotoFile.name : '选择或拖拽文件'}</span>
           </label>

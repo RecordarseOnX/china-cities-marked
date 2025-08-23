@@ -10,6 +10,24 @@
 }
 .sidebar-header h3 { margin: 0; font-size: 18px; color: var(--text-primary); }
 
+/* 【关键】为点评按钮添加样式 */
+.comment-button {
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+.comment-button:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--primary-color);
+}
+
 .sidebar-body {
   padding: 20px;
   flex-grow: 1;
@@ -21,7 +39,6 @@
 .form-group { display: flex; flex-direction: column; }
 .form-group label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
 
-/* 1. 为有图片的预览区添加可点击的鼠标样式 */
 .photo-area.clickable {
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -30,7 +47,6 @@
   transform: scale(1.02);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
-
 .photo-area {
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -61,7 +77,7 @@
 .button-danger { background-color: #ef4444; color: white; }
 .button-danger:hover { background-color: #dc2626; }
 
-/* --- 全新的自定义输入框样式 --- */
+/* --- 自定义输入框样式 --- */
 .input-wrapper {
   position: relative;
   display: flex;
@@ -96,11 +112,7 @@
   opacity: 0;
   cursor: pointer;
 }
-
-/* 隐藏原生的文件上传按钮 */
 .file-input-hidden { display: none; }
-
-/* 自定义的文件上传按钮/区域 */
 .file-input-label {
   display: flex;
   align-items: center;
@@ -115,7 +127,6 @@
   border-color: var(--primary-color);
   background-color: rgba(59, 130, 246, 0.05);
 }
-/* 2. 为拖拽状态下的文件上传区域添加视觉反馈 */
 .file-input-label.dragging {
   border-color: var(--primary-color);
   background-color: rgba(59, 130, 246, 0.1);

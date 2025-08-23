@@ -10,6 +10,7 @@ import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
 import ThemeToggle from './components/ThemeToggle';
 import ImageModal from './components/ImageModal';
+import CommentModal from './components/CommentModal';
 import './App.css';
 
 import jsPDF from 'jspdf';
@@ -30,6 +31,8 @@ function App() {
   const [currentCityData, setCurrentCityData] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [commentingCity, setCommentingCity] = useState(null);
 
   const toggleColorMode = () => {
   setColorMode(prevMode => (prevMode === 'colorful' ? 'single' : 'colorful'));};
@@ -108,6 +111,38 @@ function App() {
     setUser(null);
     setIsSidebarOpen(false);
   };
+
+    // 3. 新增用于处理点评的函数
+  const handleCommentClick = (city) => {
+    setCommentingCity(city);
+    setIsCommentModalOpen(true);
+  };
+
+  const handleCloseCommentModal = () => {
+    setIsCommentModalOpen(false);
+    setCommentingCity(null);
+  };
+
+  const handleSaveComment = async (cityName, comment, rating) => {
+      const promise = supabase
+        .from('visited_cities')
+        .update({ comment: comment, rating: rating }) // 同时更新 comment 和 rating
+        .match({ user_id: user.id, city_name: cityName });
+
+      toast.promise(promise, {
+        loading: '正在保存...',
+        success: '已保存！',
+        error: '保存失败，请重试。'
+      });
+
+      try {
+        await promise;
+        await fetchVisitedCities();
+      } catch (error) {
+        console.error("保存点评失败:", error);
+      }
+  };
+
 
 const handleExportPDF = () => {
   if (!window.confirm("您确定要将当前的旅游地图导出为 PDF 吗？")) return;
@@ -293,12 +328,19 @@ const handleExportPDF = () => {
                onSave={handleSaveCity}
                onUnmark={handleUnmarkCity}
                onImageClick={handleImageClick}
+               onCommentClick={handleCommentClick} // 4. 将触发函数传递给 Sidebar
              />
            )}
         </div>
       </div>
-      
       {lightboxImage && <ImageModal src={lightboxImage} onClose={handleCloseLightbox} />}
+      <CommentModal
+        isOpen={isCommentModalOpen}
+        onClose={handleCloseCommentModal}
+        cityData={commentingCity}
+        onSave={handleSaveComment} // 函数名改为 onSave
+      />
+
     </div>
   );
 }
