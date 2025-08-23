@@ -171,15 +171,15 @@ function App() {
             const pageCount = doc.internal.getNumberOfPages();
             for (let i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
-                doc.setFontSize(9); doc.setTextColor(150);
+                doc.setFontSize(10); doc.setTextColor(150);
                 doc.text(`${user.username}的城市足迹`, margin, 10);
                 doc.text(`第 ${i} 页 / 共 ${pageCount} 页`, pageWidth - margin, pageHeight - 10, { align: 'right' });
             }
           };
           
-          doc.setFontSize(28); doc.setTextColor(40);
+          doc.setFontSize(36); doc.setTextColor(40);
           doc.text("我的城市足迹", pageWidth/2, 80, {align: 'center'});
-          doc.setFontSize(16);
+          doc.setFontSize(18);
           doc.text(`- ${user.username} -`, pageWidth/2, 95, {align: 'center'});
           const mapProps = doc.getImageProperties(mapImageDataUrl);
           const mapAspectRatio = mapProps.width / mapProps.height;
@@ -197,7 +197,7 @@ function App() {
               const cityImageProps = await doc.getImageProperties(city.photo_url);
               const imageAspectRatio = cityImageProps.width / cityImageProps.height;
               const imageHeight = leftColumnWidth / imageAspectRatio;
-              doc.setFontSize(11);
+              doc.setFontSize(14);
               const commentLines = city.comment ? doc.splitTextToSize(city.comment, rightColumnWidth) : [];
               const textHeight = (city.visit_date ? 8 : 0) + (city.rating > 0 ? 8 : 0) + (commentLines.length * 5) + 12;
               const itemHeight = Math.max(imageHeight, textHeight) + 15;
@@ -212,7 +212,7 @@ function App() {
               doc.text(city.city_name, textX, textY + 6); 
               textY += 12;
               if (city.visit_date) {
-                doc.setFontSize(10); doc.setTextColor('#6b7280');
+                doc.setFontSize(10); doc.setTextColor('#374151');
                 doc.text(city.visit_date, textX, textY);
                 textY += 8;
               }
@@ -223,7 +223,7 @@ function App() {
                 textY += 8;
               }
               if (city.comment) {
-                doc.setFontSize(11); doc.setTextColor('#374151');
+                doc.setFontSize(14); doc.setTextColor('#1f2937');
                 doc.text(commentLines, textX, textY, { lineHeightFactor: 1.5 });
               }
               y += itemHeight;
@@ -256,53 +256,37 @@ function App() {
   };
   
   // 【关键修复】更新保存点评函数，实现即时刷新
-// 保存点评（评论 + 评分）
-const handleSaveComment = async (cityName, comment, rating) => {
-  // 先检查这座城市在 visitedCities 里是否已有记录
-  const existingCityData =
-    visitedCities.get(cityName) || { city_name: cityName, user_id: user.id };
+  const handleSaveComment = async (cityName, comment, rating) => {
+    const existingCityData = visitedCities.get(cityName) || { city_name: cityName, user_id: user.id };
 
-  // 组装写入数据库的 payload
-  const payload = {
-    ...existingCityData,
-    comment,
-    rating,
+    const payload = { ...existingCityData, comment, rating };
+
+    const promise = supabase
+      .from('visited_cities')
+      .upsert(payload, { onConflict: 'user_id, city_name' })
+      .select()
+      .single();
+
+    toast.promise(promise, { loading: '正在保存点评...', success: '点评已保存！', error: '保存失败，请重试。' });
+
+    try {
+      const { data } = await promise;
+
+      // 1. 更新 visitedCities map
+      setVisitedCities(prev => new Map(prev).set(cityName, data));
+
+      // 2. 更新侧边栏的 currentCityData
+      if (currentCityData && currentCityData.name === cityName) {
+        setCurrentCityData(prev => ({ ...prev, ...data, isVisited: true }));
+      }
+
+      // 3. 更新点评弹窗里的 cityData
+      setCommentingCity(prev => (prev && prev.name === cityName ? { ...prev, ...data } : prev));
+
+    } catch (error) {
+      console.error("保存点评失败:", error);
+    }
   };
-
-  // 调用 Supabase upsert：存在则更新，不存在则插入
-  const promise = supabase
-    .from("visited_cities")
-    .upsert(payload, { onConflict: "user_id, city_name" })
-    .select()
-    .single();
-
-  // toast 提示保存进度和结果
-  toast.promise(promise, {
-    loading: "正在保存点评...",
-    success: "点评已保存！",
-    error: "保存失败，请重试。",
-  });
-
-  try {
-    const { data } = await promise;
-
-    // 1. 更新全局的 visitedCities Map
-    setVisitedCities((prev) => new Map(prev).set(cityName, data));
-
-    // 2. 如果侧边栏正在显示的就是当前城市，则更新它的数据
-    setCurrentCityData((prev) =>
-      prev && prev.name === cityName ? { ...prev, ...data, isVisited: true } : prev
-    );
-
-    // 3. 如果点评弹窗里正好是当前城市，则同步更新它的数据
-    setCommentingCity((prev) =>
-      prev && prev.name === cityName ? { ...prev, ...data } : prev
-    );
-  } catch (error) {
-    console.error("保存点评失败:", error);
-  }
-};
-
 
   if (!user) return <Auth onLoginSuccess={setUser} />;
 
