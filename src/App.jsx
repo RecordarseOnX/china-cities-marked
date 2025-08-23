@@ -33,15 +33,14 @@ function App() {
   const [lightboxImage, setLightboxImage] = useState(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [commentingCity, setCommentingCity] = useState(null);
-
+  const [colorMode, setColorMode] = useState('colorful');
+  
   const rightColumnRef = useRef();
-  useOnClickOutside(rightColumnRef, () => setIsSidebarOpen(false), lightboxImage === null);
-
-  const toggleColorMode = () => {
-  setColorMode(prevMode => (prevMode === 'colorful' ? 'single' : 'colorful'));};
-
-  const [colorMode, setColorMode] = useState('colorful'); // 'colorful' or 'single'
-
+  useOnClickOutside(
+    rightColumnRef, 
+    () => setIsSidebarOpen(false), 
+    lightboxImage === null && !isCommentModalOpen
+  );
 
   const fetchVisitedCities = useCallback(async () => {
     if (!user) return;
@@ -75,6 +74,10 @@ function App() {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
+  const toggleColorMode = () => {
+    setColorMode(prevMode => (prevMode === 'colorful' ? 'single' : 'colorful'));
+  };
+
   const handleCityClick = (cityName) => {
     const visitedData = visitedCities.get(cityName);
     if (isSidebarOpen && currentCityData && currentCityData.name === cityName) {
@@ -87,12 +90,12 @@ function App() {
 
   const handleSaveCity = async (payload) => {
     const isUpdating = visitedCities.has(payload.city_name);
-    const promise = supabase.from('visited_cities').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id, city_name' });
+    const promise = supabase.from('visited_cities').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id, city_name' }).select().single();
     toast.promise(promise, { loading: '正在保存...', success: isUpdating ? '更新成功！' : '标记成功！', error: '保存失败，请重试。' });
     try {
-      await promise;
+      const { data } = await promise;
       await fetchVisitedCities();
-      handleCityClick(payload.city_name);
+      setCurrentCityData({ name: data.city_name, isVisited: true, ...data });
     } catch (error) { console.error("保存失败:", error); }
   };
   
@@ -111,49 +114,13 @@ function App() {
     setIsSidebarOpen(false);
   };
 
-    // 3. 新增用于处理点评的函数
-  const handleCommentClick = (city) => {
-    setCommentingCity(city);
-    setIsCommentModalOpen(true);
-  };
-
-  const handleCloseCommentModal = () => {
-    setIsCommentModalOpen(false);
-    setCommentingCity(null);
-  };
-
-  const handleSaveComment = async (cityName, comment, rating) => {
-      const promise = supabase
-        .from('visited_cities')
-        .update({ comment: comment, rating: rating }) // 同时更新 comment 和 rating
-        .match({ user_id: user.id, city_name: cityName });
-
-      toast.promise(promise, {
-        loading: '正在保存...',
-        success: '已保存！',
-        error: '保存失败，请重试。'
-      });
-
-      try {
-        await promise;
-        await fetchVisitedCities();
-      } catch (error) {
-        console.error("保存点评失败:", error);
-      }
-  };
-
-
   const handleExportPDF = () => {
     if (window.confirm("您确定要将当前的旅游地图导出为 PDF 吗？")) {
       setIsExporting(true);
       const exportPromise = new Promise(async (resolve, reject) => {
         try {
           if (!geojsonData) return reject(new Error("地图数据尚未加载"));
-          
-          const sortedCities = Array.from(visitedCities.values())
-            .filter(city => city.photo_url)
-            .sort((a, b) => (new Date(a.visit_date || 0)) - (new Date(b.visit_date || 0)));
-          
+          const sortedCities = Array.from(visitedCities.values()).filter(c => c.photo_url).sort((a,b) => (new Date(a.visit_date || 0)) - (new Date(b.visit_date || 0)));
           if (sortedCities.length === 0) return reject(new Error("没有包含照片的已标记城市可供导出"));
           
           let mapImageDataUrl;
@@ -183,8 +150,7 @@ function App() {
           const pageHeight = doc.internal.pageSize.getHeight();
           const margin = 15;
           const contentWidth = pageWidth - margin * 2;
-
-          // --- 字体加载（只加载 Regular）---
+          
           try {
             const fontResponse = await fetch('/NotoSansSC-Regular.ttf');
             if (fontResponse.ok) {
@@ -197,7 +163,7 @@ function App() {
               });
               doc.addFileToVFS('NotoSansSC-Regular.ttf', fontBase64);
               doc.addFont('NotoSansSC-Regular.ttf', 'NotoSansSC', 'normal');
-              doc.setFont('NotoSansSC', 'normal'); // 全局设置为 normal
+              doc.setFont('NotoSansSC', 'normal');
             }
           } catch(e) { console.warn("自定义字体加载失败", e); }
           
@@ -211,7 +177,6 @@ function App() {
             }
           };
           
-          // --- 封面页 ---
           doc.setFontSize(28); doc.setTextColor(40);
           doc.text("我的城市足迹", pageWidth/2, 80, {align: 'center'});
           doc.setFontSize(16);
@@ -222,61 +187,45 @@ function App() {
           const mapHeight = mapWidth / mapAspectRatio;
           doc.addImage(mapImageDataUrl, 'PNG', margin, 120, mapWidth, mapHeight);
           
-          // --- 全新设计的内容页 ---
           if (sortedCities.length > 0) {
             doc.addPage();
             let y = margin;
-
             for (const city of sortedCities) {
               const leftColumnWidth = contentWidth * 0.45;
               const rightColumnWidth = contentWidth * 0.5;
               const gap = contentWidth * 0.05;
-
               const cityImageProps = await doc.getImageProperties(city.photo_url);
               const imageAspectRatio = cityImageProps.width / cityImageProps.height;
               const imageHeight = leftColumnWidth / imageAspectRatio;
-              
               doc.setFontSize(11);
               const commentLines = city.comment ? doc.splitTextToSize(city.comment, rightColumnWidth) : [];
               const textHeight = (city.visit_date ? 8 : 0) + (city.rating > 0 ? 8 : 0) + (commentLines.length * 5) + 12;
-              
               const itemHeight = Math.max(imageHeight, textHeight) + 15;
-
               if (y + itemHeight > pageHeight - margin) {
                 doc.addPage();
                 y = margin;
               }
-              
               doc.addImage(city.photo_url, 'JPEG', margin, y, leftColumnWidth, imageHeight);
-              
               const textX = margin + leftColumnWidth + gap;
               let textY = y;
-              
-              // 【关键修复】对齐和字体样式
-              doc.setFontSize(20); // 稍微增大字号以突出
-              doc.setTextColor('#1f2937'); // 深灰色
-              // 手动向下微调 y 坐标，使其与图片顶部对齐
+              doc.setFontSize(20); doc.setTextColor('#1f2937');
               doc.text(city.city_name, textX, textY + 6); 
               textY += 12;
-              
               if (city.visit_date) {
                 doc.setFontSize(10); doc.setTextColor('#6b7280');
                 doc.text(city.visit_date, textX, textY);
                 textY += 8;
               }
-              
               if (city.rating > 0) {
                 doc.setFontSize(14); doc.setTextColor('#f59e0b');
                 const stars = '★'.repeat(city.rating) + '☆'.repeat(10 - city.rating);
                 doc.text(stars, textX, textY);
                 textY += 8;
               }
-              
               if (city.comment) {
                 doc.setFontSize(11); doc.setTextColor('#374151');
                 doc.text(commentLines, textX, textY, { lineHeightFactor: 1.5 });
               }
-
               y += itemHeight;
             }
           }
@@ -284,7 +233,6 @@ function App() {
           addHeaderAndFooter(doc);
           doc.save(`${user.username}_城市足迹_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
           resolve("PDF已成功生成并开始下载！");
-
         } catch(e) {
           reject(e);
         }
@@ -297,25 +245,71 @@ function App() {
 
   const handleImageClick = (src) => setLightboxImage(src);
   const handleCloseLightbox = () => setLightboxImage(null);
+  
+  const handleCommentClick = (city) => {
+    setCommentingCity(city);
+    setIsCommentModalOpen(true);
+  };
+  const handleCloseCommentModal = () => {
+    setIsCommentModalOpen(false);
+    setCommentingCity(null);
+  };
+  
+  // 【关键修复】更新保存点评函数，实现即时刷新
+// 保存点评（评论 + 评分）
+const handleSaveComment = async (cityName, comment, rating) => {
+  // 先检查这座城市在 visitedCities 里是否已有记录
+  const existingCityData =
+    visitedCities.get(cityName) || { city_name: cityName, user_id: user.id };
 
+  // 组装写入数据库的 payload
+  const payload = {
+    ...existingCityData,
+    comment,
+    rating,
+  };
 
+  // 调用 Supabase upsert：存在则更新，不存在则插入
+  const promise = supabase
+    .from("visited_cities")
+    .upsert(payload, { onConflict: "user_id, city_name" })
+    .select()
+    .single();
 
-  if (!user) {
-    return <Auth onLoginSuccess={setUser} />;
+  // toast 提示保存进度和结果
+  toast.promise(promise, {
+    loading: "正在保存点评...",
+    success: "点评已保存！",
+    error: "保存失败，请重试。",
+  });
+
+  try {
+    const { data } = await promise;
+
+    // 1. 更新全局的 visitedCities Map
+    setVisitedCities((prev) => new Map(prev).set(cityName, data));
+
+    // 2. 如果侧边栏正在显示的就是当前城市，则更新它的数据
+    setCurrentCityData((prev) =>
+      prev && prev.name === cityName ? { ...prev, ...data, isVisited: true } : prev
+    );
+
+    // 3. 如果点评弹窗里正好是当前城市，则同步更新它的数据
+    setCommentingCity((prev) =>
+      prev && prev.name === cityName ? { ...prev, ...data } : prev
+    );
+  } catch (error) {
+    console.error("保存点评失败:", error);
   }
+};
 
- return (
+
+  if (!user) return <Auth onLoginSuccess={setUser} />;
+
+  return (
     <div id="app-container">
       <Toaster position="top-center" toastOptions={{ duration: 3000, style: { background: 'var(--panel-color)', color: 'var(--text-primary)', boxShadow: 'var(--shadow-md)' } }}/>
-
-      <MapComponent
-        geojsonData={geojsonData}
-        selectedCities={new Set(visitedCities.keys())}
-        setCityLayers={setCityLayers}
-        onCityClick={handleCityClick}
-        colorMode={colorMode} // 传递颜色模式
-      />
-
+      <MapComponent geojsonData={geojsonData} selectedCities={new Set(visitedCities.keys())} setCityLayers={setCityLayers} onCityClick={handleCityClick} colorMode={colorMode}/>
       <div className="ui-top-left-cluster">
         <div className="user-info-bar">
           <span>{user.username}</span>
@@ -326,14 +320,8 @@ function App() {
           <button onClick={handleLogout} className="logout-button">退出</button>
         </div>
         <Search cityLayers={cityLayers} onCitySelect={handleCityClick} />
-        <ThemeToggle 
-          theme={theme} 
-          toggleTheme={toggleTheme} 
-          colorMode={colorMode}
-          toggleColorMode={toggleColorMode}
-        />
+        <ThemeToggle theme={theme} toggleTheme={toggleTheme} colorMode={colorMode} toggleColorMode={toggleColorMode} />
       </div>
-
       <div className="ui-right-column" ref={rightColumnRef}>
         <Stats visitedCount={visitedCities.size} totalCount={geojsonData ? geojsonData.features.length : 0} />
         <div className={`sidebar-content-wrapper ${isSidebarOpen ? 'open' : ''}`}>
@@ -343,7 +331,7 @@ function App() {
                onSave={handleSaveCity}
                onUnmark={handleUnmarkCity}
                onImageClick={handleImageClick}
-               onCommentClick={handleCommentClick} // 4. 将触发函数传递给 Sidebar
+               onCommentClick={handleCommentClick}
              />
            )}
         </div>
@@ -353,9 +341,8 @@ function App() {
         isOpen={isCommentModalOpen}
         onClose={handleCloseCommentModal}
         cityData={commentingCity}
-        onSave={handleSaveComment} // 函数名改为 onSave
+        onSave={handleSaveComment}
       />
-
     </div>
   );
 }

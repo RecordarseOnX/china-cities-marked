@@ -2,35 +2,43 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import useOnClickOutside from '../hooks/useOnClickOutside';
-import StarRating from './StarRating'; // 1. 引入星级评分组件
+import StarRating from './StarRating';
 import './CommentModal.css';
 
 function CommentModal({ isOpen, onClose, cityData, onSave }) {
   const [comment, setComment] = useState('');
-  const [rating, setRating] = useState(0); // 2. 新增评分 state
+  const [rating, setRating] = useState(0);
   const modalRef = useRef();
 
-  // 点击弹窗外部时，自动保存并关闭
-  useOnClickOutside(modalRef, () => {
-    if (isOpen) {
-      onSave(cityData.name, comment, rating); // 3. 保存时传递评分
-      onClose();
-    }
-  });
+  const handleSave = () => {
+    if (!isOpen || !cityData) return;
+    onSave(cityData.name, comment, rating);
+    onClose();
+  };
 
+  const handleCloseWithoutSave = () => onClose();
+
+  useOnClickOutside(modalRef, handleCloseWithoutSave);
+
+  // 只在弹窗打开且“城市名字变化”时重置草稿
   useEffect(() => {
     if (isOpen && cityData) {
-      setComment(cityData.comment || '');
-      setRating(cityData.rating || 0); // 4. 填充评分
+      setComment(cityData.comment ?? '');
+      setRating(cityData.rating ?? 0);
     }
-  }, [isOpen, cityData]);
+    // 仅依赖 name，避免对象浅比较造成的误触发
+  }, [isOpen, cityData?.name]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !cityData) return null;
 
   return (
     <div className="comment-modal-overlay">
       <div className="comment-modal-content" ref={modalRef}>
-        <h4>点评: {cityData.name}</h4>
+        <div className="modal-header">
+          <h4>点评: {cityData.name}</h4>
+          <button className="close-button" onClick={handleCloseWithoutSave}>×</button>
+        </div>
+
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
@@ -38,14 +46,19 @@ function CommentModal({ isOpen, onClose, cityData, onSave }) {
           maxLength="200"
           autoFocus
         />
+
         <div className="modal-footer">
-          {/* 5. 添加星级评分组件 */}
           <StarRating
-            initialRating={rating}
+            key={cityData.name}
+            // ★ 关键：初始值用 props，而不是本地 state，避免“上一座城市”的值被当初始
+            initialRating={cityData?.rating ?? 0}
             onRate={(newRating) => setRating(newRating)}
           />
-          <div className={`char-counter ${comment.length > 200 ? 'exceeded' : ''}`}>
-            {comment.length} / 200
+          <div className="footer-right">
+            <span className={`char-counter ${comment.length > 200 ? 'exceeded' : ''}`}>
+              {comment.length} / 200
+            </span>
+            <button onClick={handleSave} className="save-comment-button">保存</button>
           </div>
         </div>
       </div>
