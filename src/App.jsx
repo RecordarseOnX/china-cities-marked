@@ -36,6 +36,9 @@ function App() {
   const [colorMode, setColorMode] = useState('colorful');
   
   const rightColumnRef = useRef();
+  
+  // --- 【关键修复】升级 useOnClickOutside 的启用条件 ---
+  // 只有当图片弹窗 和 点评弹窗都关闭时，才允许点击外部关闭侧边栏
   useOnClickOutside(
     rightColumnRef, 
     () => setIsSidebarOpen(false), 
@@ -49,16 +52,8 @@ function App() {
       if (error) throw error;
       const cityMap = new Map(data.map(city => [city.city_name, city]));
       setVisitedCities(cityMap);
-    } catch (error) {
-      console.error('获取城市数据失败:', error);
-    }
+    } catch (error) { console.error('获取城市数据失败:', error); }
   }, [user]);
-
-useEffect(() => {
-  if (user) {
-    fetchVisitedCities();
-  }
-}, [user, fetchVisitedCities]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -87,25 +82,25 @@ useEffect(() => {
   };
 
   const handleCityClick = (cityName) => {
+    const isVisited = visitedCities.has(cityName);
     const visitedData = visitedCities.get(cityName);
-
-    if (currentCityData?.name === cityName) {
-      // 如果点击同一个城市，先关闭侧边栏再重新打开
+    const newCityData = {
+      ...(visitedData || {}),
+      name: cityName,
+      isVisited: isVisited,
+    };
+    
+    if (isSidebarOpen && currentCityData && currentCityData.name === cityName) {
       setIsSidebarOpen(false);
-      setTimeout(() => {
-        setCurrentCityData({ name: cityName, isVisited: !!visitedData, ...visitedData });
-        setIsSidebarOpen(true);
-      }, 0);
     } else {
-      setCurrentCityData({ name: cityName, isVisited: !!visitedData, ...visitedData });
+      setCurrentCityData(newCityData);
       setIsSidebarOpen(true);
     }
   };
 
   const handleSaveCity = async (payload) => {
-    const isUpdating = visitedCities.has(payload.city_name);
     const promise = supabase.from('visited_cities').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id, city_name' }).select().single();
-    toast.promise(promise, { loading: '正在保存...', success: isUpdating ? '更新成功！' : '标记成功！', error: '保存失败，请重试。' });
+    toast.promise(promise, { loading: '正在保存...', success: '标记成功！', error: '保存失败，请重试。' });
     try {
       const { data } = await promise;
       await fetchVisitedCities();
@@ -185,15 +180,15 @@ useEffect(() => {
             const pageCount = doc.internal.getNumberOfPages();
             for (let i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
-                doc.setFontSize(10); doc.setTextColor(150);
+                doc.setFontSize(9); doc.setTextColor(150);
                 doc.text(`${user.username}的城市足迹`, margin, 10);
                 doc.text(`第 ${i} 页 / 共 ${pageCount} 页`, pageWidth - margin, pageHeight - 10, { align: 'right' });
             }
           };
           
-          doc.setFontSize(36); doc.setTextColor(40);
+          doc.setFontSize(28); doc.setTextColor(40);
           doc.text("我的城市足迹", pageWidth/2, 80, {align: 'center'});
-          doc.setFontSize(18);
+          doc.setFontSize(16);
           doc.text(`- ${user.username} -`, pageWidth/2, 95, {align: 'center'});
           const mapProps = doc.getImageProperties(mapImageDataUrl);
           const mapAspectRatio = mapProps.width / mapProps.height;
@@ -211,7 +206,7 @@ useEffect(() => {
               const cityImageProps = await doc.getImageProperties(city.photo_url);
               const imageAspectRatio = cityImageProps.width / cityImageProps.height;
               const imageHeight = leftColumnWidth / imageAspectRatio;
-              doc.setFontSize(14);
+              doc.setFontSize(11);
               const commentLines = city.comment ? doc.splitTextToSize(city.comment, rightColumnWidth) : [];
               const textHeight = (city.visit_date ? 8 : 0) + (city.rating > 0 ? 8 : 0) + (commentLines.length * 5) + 12;
               const itemHeight = Math.max(imageHeight, textHeight) + 15;
@@ -226,7 +221,7 @@ useEffect(() => {
               doc.text(city.city_name, textX, textY + 6); 
               textY += 12;
               if (city.visit_date) {
-                doc.setFontSize(10); doc.setTextColor('#374151');
+                doc.setFontSize(10); doc.setTextColor('#6b7280');
                 doc.text(city.visit_date, textX, textY);
                 textY += 8;
               }
@@ -237,7 +232,7 @@ useEffect(() => {
                 textY += 8;
               }
               if (city.comment) {
-                doc.setFontSize(14); doc.setTextColor('#1f2937');
+                doc.setFontSize(11); doc.setTextColor('#374151');
                 doc.text(commentLines, textX, textY, { lineHeightFactor: 1.5 });
               }
               y += itemHeight;
@@ -264,50 +259,35 @@ useEffect(() => {
     setCommentingCity(city);
     setIsCommentModalOpen(true);
   };
+
   const handleCloseCommentModal = () => {
     setIsCommentModalOpen(false);
     setCommentingCity(null);
   };
   
-  // 【关键修复】更新保存点评函数，实现即时刷新
   const handleSaveComment = async (cityName, comment, rating) => {
     const existingCityData = visitedCities.get(cityName) || { city_name: cityName, user_id: user.id };
-
-    const payload = { ...existingCityData, comment, rating };
-
-    const promise = supabase
-      .from('visited_cities')
-      .upsert(payload, { onConflict: 'user_id, city_name' })
-      .select()
-      .single();
-
+    const promise = supabase.from('visited_cities').upsert({ ...existingCityData, comment: comment, rating: rating }, { onConflict: 'user_id, city_name' }).select().single();
     toast.promise(promise, { loading: '正在保存点评...', success: '点评已保存！', error: '保存失败，请重试。' });
-
     try {
       const { data } = await promise;
-
-      // 1. 更新 visitedCities map
-      setVisitedCities(prev => new Map(prev).set(cityName, data));
-
-      // 2. 更新侧边栏的 currentCityData
+      await fetchVisitedCities();
       if (currentCityData && currentCityData.name === cityName) {
         setCurrentCityData(prev => ({ ...prev, ...data, isVisited: true }));
       }
-
-      // 3. 更新点评弹窗里的 cityData
-      setCommentingCity(prev => (prev && prev.name === cityName ? { ...prev, ...data } : prev));
-
-    } catch (error) {
-      console.error("保存点评失败:", error);
-    }
+    } catch (error) { console.error("保存点评失败:", error); }
   };
 
-  if (!user) return <Auth onLoginSuccess={setUser} />;
+  if (!user) {
+    return <Auth onLoginSuccess={setUser} />;
+  }
 
   return (
     <div id="app-container">
       <Toaster position="top-center" toastOptions={{ duration: 3000, style: { background: 'var(--panel-color)', color: 'var(--text-primary)', boxShadow: 'var(--shadow-md)' } }}/>
+
       <MapComponent geojsonData={geojsonData} selectedCities={new Set(visitedCities.keys())} setCityLayers={setCityLayers} onCityClick={handleCityClick} colorMode={colorMode}/>
+
       <div className="ui-top-left-cluster">
         <div className="user-info-bar">
           <span>{user.username}</span>
@@ -320,12 +300,12 @@ useEffect(() => {
         <Search cityLayers={cityLayers} onCitySelect={handleCityClick} />
         <ThemeToggle theme={theme} toggleTheme={toggleTheme} colorMode={colorMode} toggleColorMode={toggleColorMode} />
       </div>
+
       <div className="ui-right-column" ref={rightColumnRef}>
         <Stats visitedCount={visitedCities.size} totalCount={geojsonData ? geojsonData.features.length : 0} />
         <div className={`sidebar-content-wrapper ${isSidebarOpen ? 'open' : ''}`}>
            {currentCityData && (
              <Sidebar
-               key={currentCityData.name} // ← 关键修改
                cityData={currentCityData}
                onSave={handleSaveCity}
                onUnmark={handleUnmarkCity}
@@ -335,6 +315,7 @@ useEffect(() => {
            )}
         </div>
       </div>
+      
       {lightboxImage && <ImageModal src={lightboxImage} onClose={handleCloseLightbox} />}
       <CommentModal
         isOpen={isCommentModalOpen}

@@ -1,13 +1,13 @@
 // src/components/Sidebar.jsx
 
 import React, { useState, useEffect } from 'react';
+import DatePicker from './DatePicker';
 import './Sidebar.css'; 
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 const UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 
-// 内联的 SVG 图标组件
 const CalendarIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
 );
@@ -91,7 +91,6 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
   if (!cityData) return null;
 
   const imageSourceForDisplay = newPhotoFile ? URL.createObjectURL(newPhotoFile) : photoUrl;
-
   const getOriginalCloudinaryUrl = (url) => {
     if (!url || !url.includes('/upload/')) return url;
     const parts = url.split('/upload/');
@@ -104,6 +103,7 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
     <>
       <div className="sidebar-header">
         <h3>{cityData.name}</h3>
+        {/* 【关键修复】直接将 cityData 对象传递给 onCommentClick */}
         <button onClick={() => onCommentClick(cityData)} className="comment-button" aria-label="添加或编辑点评">
           <CommentIcon />
         </button>
@@ -111,10 +111,10 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
       <div className="sidebar-body">
         <div className="form-group">
           <label>初次到达时间</label>
-          <div className="input-wrapper">
-            <CalendarIcon />
-            <input type="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
-          </div>
+          <DatePicker 
+            value={visitDate}
+            onChange={(newDate) => setVisitDate(newDate)}
+          />
         </div>
         <div className="form-group">
           <label>照片 (4:3)</label>
