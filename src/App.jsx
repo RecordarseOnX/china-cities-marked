@@ -48,7 +48,17 @@ function App() {
   const fetchVisitedCities = useCallback(async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase.from('visited_cities').select('*').eq('user_id', user.id);
+      // 【关键】使用新的查询，同时获取城市信息和关联的照片
+      const { data, error } = await supabase
+        .from('visited_cities')
+        .select(`
+          *,
+          photos (
+            category,
+            photo_url
+          )
+        `)
+        .eq('user_id', user.id);
       if (error) throw error;
       const cityMap = new Map(data.map(city => [city.city_name, city]));
       setVisitedCities(cityMap);
@@ -98,14 +108,48 @@ function App() {
     }
   };
 
-  const handleSaveCity = async (payload) => {
-    const promise = supabase.from('visited_cities').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id, city_name' }).select().single();
-    toast.promise(promise, { loading: '正在保存...', success: '标记成功！', error: '保存失败，请重试。' });
-    try {
-      const { data } = await promise;
-      await fetchVisitedCities();
-      setCurrentCityData({ name: data.city_name, isVisited: true, ...data });
-    } catch (error) { console.error("保存失败:", error); }
+  const handleSaveCity = async (cityPayload, photosPayload) => {
+    // 步骤1: 先保存或更新城市信息，确保我们有一个 visited_city_id
+    const { data: city, error: cityError } = await supabase
+      .from('visited_cities')
+      .upsert({ user_id: user.id, ...cityPayload }, { onConflict: 'user_id, city_name' })
+      .select()
+      .single();
+
+    if (cityError) {
+      toast.error("保存城市信息失败: " + cityError.message);
+      return;
+    }
+
+    // 步骤2: 删除该城市所有旧的照片，准备写入新照片
+    const { error: deleteError } = await supabase
+      .from('photos')
+      .delete()
+      .eq('visited_city_id', city.id);
+
+    if (deleteError) {
+      toast.error("清理旧照片失败: " + deleteError.message);
+      return;
+    }
+    
+    // 步骤3: 如果有新照片，就插入它们
+    if (photosPayload && photosPayload.length > 0) {
+      const photosToInsert = photosPayload.map(p => ({
+        visited_city_id: city.id,
+        category: p.category,
+        photo_url: p.photo_url,
+      }));
+      const { error: insertError } = await supabase.from('photos').insert(photosToInsert);
+      if (insertError) {
+        toast.error("保存新照片失败: " + insertError.message);
+        return;
+      }
+    }
+
+    toast.success('标记成功！');
+    await fetchVisitedCities();
+    // 重新点击以刷新侧边栏
+    handleCityClick(city.city_name);
   };
   
   const handleUnmarkCity = async (cityName) => {
@@ -123,134 +167,193 @@ function App() {
     setIsSidebarOpen(false);
   };
 
-  const handleExportPDF = () => {
-    if (window.confirm("您确定要将当前的旅游地图导出为 PDF 吗？")) {
-      setIsExporting(true);
-      const exportPromise = new Promise(async (resolve, reject) => {
+const handleExportPDF = () => {
+  if (window.confirm("您确定要将当前的旅游地图导出为 PDF 吗？")) {
+    setIsExporting(true);
+    const exportPromise = new Promise(async (resolve, reject) => {
+      try {
+        if (!geojsonData) return reject(new Error("地图数据尚未加载"));
+        
+        const sortedCities = Array.from(visitedCities.values())
+          .filter(city => city.photos && city.photos.length > 0)
+          .sort((a, b) => (new Date(a.visit_date || 0)) - (new Date(b.visit_date || 0)));
+        
+        if (sortedCities.length === 0) return reject(new Error("没有包含照片的已标记城市可供导出"));
+        
+        let mapImageDataUrl;
+        const tempContainer = document.createElement('div');
+        tempContainer.style.cssText = 'position: absolute; left: -9999px; width: 1200px; height: 800px;';
+        document.body.appendChild(tempContainer);
         try {
-          if (!geojsonData) return reject(new Error("地图数据尚未加载"));
-          const sortedCities = Array.from(visitedCities.values()).filter(c => c.photo_url).sort((a,b) => (new Date(a.visit_date || 0)) - (new Date(b.visit_date || 0)));
-          if (sortedCities.length === 0) return reject(new Error("没有包含照片的已标记城市可供导出"));
-          
-          let mapImageDataUrl;
-          const tempContainer = document.createElement('div');
-          tempContainer.style.cssText = 'position: absolute; left: -9999px; width: 1200px; height: 800px;';
-          document.body.appendChild(tempContainer);
-          try {
-            const tempMap = L.map(tempContainer, { zoomControl: false, attributionControl: false, preferCanvas: true });
-            const lineRgb = theme === 'dark' ? '90, 90, 90' : '163, 168, 175';
-            const colorScale = scaleSequential(interpolateSinebow);
-            const getColor = (name) => {
-              let hash = 0; for(let i=0; i<name.length; i++) { hash = name.charCodeAt(i) + ((hash << 5) - hash); hash |= 0; }
-              return colorScale((Math.abs(hash) % 1000) / 1000);
-            };
-            const selectedCitiesSet = new Set(visitedCities.keys());
-            const geojsonLayer = L.geoJSON(geojsonData, { style: f => ({ color: `rgb(${lineRgb})`, weight: 0.6, fillOpacity: selectedCitiesSet.has(f.properties.name) ? 0.6 : 0, fillColor: colorMode === 'single' ? '#48cae4' : getColor(f.properties.name) }) }).addTo(tempMap);
-            tempMap.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
-            await new Promise(res => setTimeout(res, 500));
-            const canvas = await html2canvas(tempContainer, { useCORS: true, logging: false, backgroundColor: theme === 'dark' ? 'rgb(30, 32, 33)' : 'rgb(247, 247, 247)' });
-            mapImageDataUrl = canvas.toDataURL('image/png');
-          } finally {
-            document.body.removeChild(tempContainer);
-          }
-
-          const doc = new jsPDF('p', 'mm', 'a4');
-          const pageWidth = doc.internal.pageSize.getWidth();
-          const pageHeight = doc.internal.pageSize.getHeight();
-          const margin = 15;
-          const contentWidth = pageWidth - margin * 2;
-          
-          try {
-            const fontResponse = await fetch('/NotoSansSC-Regular.ttf');
-            if (fontResponse.ok) {
-              const fontBlob = await fontResponse.blob();
-              const reader = new FileReader();
-              const fontBase64 = await new Promise((res, rej) => {
-                reader.onloadend = () => res(reader.result.split(',')[1]);
-                reader.onerror = rej;
-                reader.readAsDataURL(fontBlob);
-              });
-              doc.addFileToVFS('NotoSansSC-Regular.ttf', fontBase64);
-              doc.addFont('NotoSansSC-Regular.ttf', 'NotoSansSC', 'normal');
-              doc.setFont('NotoSansSC', 'normal');
-            }
-          } catch(e) { console.warn("自定义字体加载失败", e); }
-          
-          const addHeaderAndFooter = () => {
-            const pageCount = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.setFontSize(9); doc.setTextColor(150);
-                doc.text(`${user.username}的城市足迹`, margin, 10);
-                doc.text(`第 ${i} 页 / 共 ${pageCount} 页`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-            }
+          const tempMap = L.map(tempContainer, { zoomControl: false, attributionControl: false, preferCanvas: true });
+          const lineRgb = theme === 'dark' ? '90, 90, 90' : '163, 168, 175';
+          const colorScale = scaleSequential(interpolateSinebow);
+          const getColor = (name) => {
+            let hash = 0; for(let i=0; i<name.length; i++) { hash = name.charCodeAt(i) + ((hash << 5) - hash); hash |= 0; }
+            return colorScale((Math.abs(hash) % 1000) / 1000);
           };
-          
-          doc.setFontSize(28); doc.setTextColor(40);
-          doc.text("我的城市足迹", pageWidth/2, 80, {align: 'center'});
-          doc.setFontSize(16);
-          doc.text(`- ${user.username} -`, pageWidth/2, 95, {align: 'center'});
-          const mapProps = doc.getImageProperties(mapImageDataUrl);
-          const mapAspectRatio = mapProps.width / mapProps.height;
-          const mapWidth = pageWidth - margin * 2;
-          const mapHeight = mapWidth / mapAspectRatio;
-          doc.addImage(mapImageDataUrl, 'PNG', margin, 120, mapWidth, mapHeight);
-          
-          if (sortedCities.length > 0) {
-            doc.addPage();
-            let y = margin;
-            for (const city of sortedCities) {
-              const leftColumnWidth = contentWidth * 0.45;
-              const rightColumnWidth = contentWidth * 0.5;
-              const gap = contentWidth * 0.05;
-              const cityImageProps = await doc.getImageProperties(city.photo_url);
-              const imageAspectRatio = cityImageProps.width / cityImageProps.height;
-              const imageHeight = leftColumnWidth / imageAspectRatio;
-              doc.setFontSize(11);
-              const commentLines = city.comment ? doc.splitTextToSize(city.comment, rightColumnWidth) : [];
-              const textHeight = (city.visit_date ? 8 : 0) + (city.rating > 0 ? 8 : 0) + (commentLines.length * 5) + 12;
-              const itemHeight = Math.max(imageHeight, textHeight) + 15;
-              if (y + itemHeight > pageHeight - margin) {
-                doc.addPage();
-                y = margin;
-              }
-              doc.addImage(city.photo_url, 'JPEG', margin, y, leftColumnWidth, imageHeight);
-              const textX = margin + leftColumnWidth + gap;
-              let textY = y;
-              doc.setFontSize(20); doc.setTextColor('#1f2937');
-              doc.text(city.city_name, textX, textY + 6); 
-              textY += 12;
-              if (city.visit_date) {
-                doc.setFontSize(10); doc.setTextColor('#6b7280');
-                doc.text(city.visit_date, textX, textY);
-                textY += 8;
-              }
-              if (city.rating > 0) {
-                doc.setFontSize(14); doc.setTextColor('#f59e0b');
-                const stars = '★'.repeat(city.rating) + '☆'.repeat(10 - city.rating);
-                doc.text(stars, textX, textY);
-                textY += 8;
-              }
-              if (city.comment) {
-                doc.setFontSize(11); doc.setTextColor('#374151');
-                doc.text(commentLines, textX, textY, { lineHeightFactor: 1.5 });
-              }
-              y += itemHeight;
-            }
-          }
-
-          addHeaderAndFooter(doc);
-          doc.save(`${user.username}_城市足迹_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
-          resolve("PDF已成功生成并开始下载！");
-        } catch(e) {
-          reject(e);
+          const selectedCitiesSet = new Set(visitedCities.keys());
+          const geojsonLayer = L.geoJSON(geojsonData, { style: f => ({ color: `rgb(${lineRgb})`, weight: 0.6, fillOpacity: selectedCitiesSet.has(f.properties.name) ? 0.6 : 0, fillColor: colorMode === 'single' ? '#48cae4' : getColor(f.properties.name) }) }).addTo(tempMap);
+          tempMap.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+          await new Promise(res => setTimeout(res, 500));
+          const canvas = await html2canvas(tempContainer, { useCORS: true, logging: false, backgroundColor: theme === 'dark' ? 'rgb(30, 32, 33)' : 'rgb(247, 247, 247)' });
+          mapImageDataUrl = canvas.toDataURL('image/png');
+        } finally {
+          document.body.removeChild(tempContainer);
         }
-      }).finally(() => {
-        setIsExporting(false);
-      });
-      toast.promise(exportPromise, { loading: '正在生成PDF...', success: (msg) => msg, error: (err) => `导出失败: ${err.message}` });
-    }
-  };
+
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 15;
+        const contentWidth = pageWidth - margin * 2;
+        const safeContentHeight = pageHeight - margin * 2;
+
+        try {
+          const fontResponse = await fetch('/NotoSansSC-Regular.ttf');
+          if (fontResponse.ok) {
+            const fontBlob = await fontResponse.blob();
+            const reader = new FileReader();
+            const fontBase64 = await new Promise((res, rej) => {
+              reader.onloadend = () => res(reader.result.split(',')[1]);
+              reader.onerror = rej;
+              reader.readAsDataURL(fontBlob);
+            });
+            doc.addFileToVFS('NotoSansSC-Regular.ttf', fontBase64);
+            doc.addFont('NotoSansSC-Regular.ttf', 'NotoSansSC', 'normal');
+            doc.setFont('NotoSansSC', 'normal');
+          }
+        } catch(e) { console.warn("自定义字体加载失败", e); }
+        
+        const addHeaderAndFooter = (docInstance) => {
+          const pageCount = docInstance.internal.getNumberOfPages();
+          for (let i = 1; i <= pageCount; i++) {
+              docInstance.setPage(i);
+              docInstance.setFontSize(9); docInstance.setTextColor(150);
+              docInstance.text(`${user.username}的城市足迹`, margin, 10);
+              docInstance.text(`第 ${i} 页 / 共 ${pageCount} 页`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+          }
+        };
+        
+        // 封面
+        doc.setFontSize(28); doc.setTextColor(40);
+        doc.text("我的城市足迹", pageWidth/2, 100, {align: 'center'});
+        doc.setFontSize(16);
+        doc.text(`- ${user.username} -`, pageWidth/2, 115, {align: 'center'});
+        const mapProps = doc.getImageProperties(mapImageDataUrl);
+        const mapAspectRatio = mapProps.width / mapProps.height;
+        const mapWidth = pageWidth - margin * 2;
+        const mapHeight = mapWidth / mapAspectRatio;
+        doc.addImage(mapImageDataUrl, 'PNG', margin, 130, mapWidth, mapHeight);
+        
+        // 城市详情页
+        if (sortedCities.length > 0) {
+          doc.addPage();
+          let y = margin + 10; // <<< 下移 20mm，避免覆盖页眉
+          for (const city of sortedCities) {
+            let estimatedHeight = 12;
+            if (city.rating > 0) estimatedHeight += 8;
+            doc.setFontSize(11);
+            const commentLines = city.comment ? doc.splitTextToSize(city.comment, contentWidth) : [];
+            if (commentLines.length > 0) estimatedHeight += (commentLines.length * 5 * 1.5) + 5;
+            const photoGridHeight = await (async () => {
+              let gridH = 0;
+              if (city.photos && city.photos.length > 0) {
+                const photoWidth = (contentWidth - 5) / 2;
+                let rowHeight = 0;
+                for (let i = 0; i < city.photos.length; i++) {
+                  const photo = city.photos[i];
+                  const props = await doc.getImageProperties(photo.photo_url);
+                  const photoHeight = photoWidth * props.height / props.width;
+                  rowHeight = Math.max(rowHeight, photoHeight);
+                  if ((i + 1) % 2 === 0 || i === city.photos.length - 1) {
+                    gridH += rowHeight + 5;
+                    rowHeight = 0;
+                  }
+                }
+              }
+              return gridH;
+            })();
+            estimatedHeight += photoGridHeight;
+            
+            if (y + estimatedHeight > safeContentHeight) {
+              doc.addPage();
+              y = margin + 10; // 新页也要下移
+            }
+
+            doc.setFontSize(20); doc.setTextColor('#1f2937');
+            doc.text(city.city_name, margin, y);
+            if (city.visit_date) {
+              doc.setFontSize(10); doc.setTextColor('#6b7280');
+              doc.text(city.visit_date, pageWidth - margin, y, { align: 'right' });
+            }
+            y += 10;
+            
+            if (city.rating > 0) {
+              doc.setFontSize(14); doc.setTextColor('#f59e0b');
+              const stars = '★'.repeat(city.rating) + '☆'.repeat(10 - city.rating);
+              doc.text(stars, margin, y);
+              y += 8;
+            }
+            
+            if (city.comment) {
+              doc.setFontSize(11); doc.setTextColor('#374151');
+              doc.text(commentLines, margin, y, { lineHeightFactor: 1.5 });
+              y += (commentLines.length * 5 * 1.5) + 5;
+            }
+            
+            doc.setDrawColor(230);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 5;
+
+            if (city.photos && city.photos.length > 0) {
+              const photoWidth = (contentWidth - 5) / 2;
+              let rowHeight = 0;
+              let currentX = margin;
+              for (let i = 0; i < city.photos.length; i++) {
+                const photo = city.photos[i];
+                const props = await doc.getImageProperties(photo.photo_url);
+                const photoHeight = photoWidth * props.height / props.width;
+                if (y + photoHeight > safeContentHeight) {
+                    doc.addPage();
+                    y = margin + 10; // 新页也要下移
+                    currentX = margin;
+                    rowHeight = 0;
+                }
+                doc.addImage(photo.photo_url, 'JPEG', currentX, y, photoWidth, photoHeight);
+                rowHeight = Math.max(rowHeight, photoHeight);
+                if ((i + 1) % 2 === 0) {
+                  currentX = margin;
+                  y += rowHeight + 5;
+                  rowHeight = 0;
+                } else {
+                  currentX += photoWidth + 5;
+                }
+              }
+              if (city.photos.length % 2 !== 0) {
+                y += rowHeight + 5;
+              }
+            }
+            y += 10;
+          }
+        }
+
+        addHeaderAndFooter(doc);
+        doc.save(`${user.username}_城市足迹_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
+        resolve("PDF已成功生成并开始下载！");
+      } catch(e) {
+        reject(e);
+      }
+    }).finally(() => {
+      setIsExporting(false);
+    });
+    toast.promise(exportPromise, { loading: '正在生成PDF...', success: (msg) => msg, error: (err) => `导出失败: ${err.message}` });
+  }
+};
+
+
+
+
 
   const handleImageClick = (src) => setLightboxImage(src);
   const handleCloseLightbox = () => setLightboxImage(null);
@@ -265,18 +368,34 @@ function App() {
     setCommentingCity(null);
   };
   
-  const handleSaveComment = async (cityName, comment, rating) => {
-    const existingCityData = visitedCities.get(cityName) || { city_name: cityName, user_id: user.id };
-    const promise = supabase.from('visited_cities').upsert({ ...existingCityData, comment: comment, rating: rating }, { onConflict: 'user_id, city_name' }).select().single();
-    toast.promise(promise, { loading: '正在保存点评...', success: '点评已保存！', error: '保存失败，请重试。' });
-    try {
-      const { data } = await promise;
-      await fetchVisitedCities();
-      if (currentCityData && currentCityData.name === cityName) {
-        setCurrentCityData(prev => ({ ...prev, ...data, isVisited: true }));
-      }
-    } catch (error) { console.error("保存点评失败:", error); }
+const handleSaveComment = async (cityName, comment, rating) => {
+  if (!user) return;
+
+  const payload = {
+    user_id: user.id,
+    city_name: cityName,
+    comment: comment || null,
+    rating: rating ? Number(rating) : 0
   };
+
+  try {
+    const { data, error } = await supabase
+      .from('visited_cities')
+      .upsert(payload, { onConflict: 'user_id, city_name' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    setVisitedCities(prev => new Map(prev).set(cityName, data));
+    setCurrentCityData(prev => prev && prev.name === cityName ? { ...prev, ...data, isVisited: true } : prev);
+
+    toast.success('点评已保存！');
+  } catch (err) {
+    console.error("保存点评失败:", err);
+  }
+};
+
 
   if (!user) {
     return <Auth onLoginSuccess={setUser} />;

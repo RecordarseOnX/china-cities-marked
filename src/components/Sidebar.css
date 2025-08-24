@@ -110,3 +110,44 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.photo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.photo-category-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.category-tab {
+  background-color: transparent;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.category-tab:hover {
+  border-color: var(--primary-color);
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.category-tab.active {
+  border-color: var(--primary-color);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.category-tab img {
+  width: 20px;
+  height: 20px;
+  /* 确保 SVG 颜色能随主题变化 */
+  filter: var(--svg-filter, none);
+}

@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 
 import React, { useState, useEffect } from 'react';
-import DatePicker from './DatePicker';
+import DatePicker from './DatePicker'; // 1. 引入新组件
 import './Sidebar.css'; 
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -18,57 +18,78 @@ const CommentIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 );
 
+// 照片类别配置
+const PHOTO_CATEGORIES = [
+  { id: 'scenery', name: '风景', icon: '/icons/scenery.svg' },
+  { id: 'friends', name: '朋友', icon: '/icons/friends.svg' },
+  { id: 'food', name: '美食', icon: '/icons/food.svg' },
+  { id: 'lover', name: '恋人', icon: '/icons/lover.svg' },
+];
+
 function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
   const [visitDate, setVisitDate] = useState('');
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const [newPhotoFile, setNewPhotoFile] = useState(null);
+  const [photos, setPhotos] = useState({});
+  const [activeCategory, setActiveCategory] = useState('scenery');
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (cityData) {
-      setVisitDate(cityData.visit_date || '');
-      setPhotoUrl(cityData.photo_url || null);
+      setVisitDate(cityData.visit_date || new Date().toISOString().split('T')[0]);
+      const photosObject = (cityData.photos || []).reduce((acc, photo) => {
+        acc[photo.category] = { url: photo.photo_url, file: null };
+        return acc;
+      }, {});
+      setPhotos(photosObject);
+      setActiveCategory('scenery');
     }
-    setNewPhotoFile(null);
-    setIsUploading(false);
-    setIsDragging(false);
   }, [cityData]);
 
   const handleFileChange = (file) => {
     if (file && file.type.startsWith('image/')) {
-      setNewPhotoFile(file);
+      setPhotos(prev => ({
+        ...prev,
+        [activeCategory]: { ...prev[activeCategory], file: file }
+      }));
     }
   };
 
   const handleSave = async () => {
-    let uploadedPhotoUrl = photoUrl;
-    if (newPhotoFile) {
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append('file', newPhotoFile);
-      formData.append('upload_preset', UPLOAD_PRESET);
-      formData.append('folder', 'city');
-      try {
-        const response = await fetch(UPLOAD_URL, { method: 'POST', body: formData });
-        const data = await response.json();
-        if (data.secure_url) {
-          uploadedPhotoUrl = data.secure_url;
-        } else { 
-          throw new Error(data.error.message || '图片上传失败'); 
+    setIsUploading(true);
+    let finalPhotos = { ...photos };
+
+    for (const category of PHOTO_CATEGORIES) {
+      const catId = category.id;
+      if (finalPhotos[catId] && finalPhotos[catId].file) {
+        const formData = new FormData();
+        formData.append('file', finalPhotos[catId].file);
+        formData.append('upload_preset', UPLOAD_PRESET);
+        formData.append('folder', 'city');
+        try {
+          const response = await fetch(UPLOAD_URL, { method: 'POST', body: formData });
+          const data = await response.json();
+          if (data.secure_url) {
+            finalPhotos[catId] = { url: data.secure_url, file: null };
+          } else {
+            throw new Error(data.error.message || `“${category.name}”图片上传失败`);
+          }
+        } catch (error) {
+          toast.error(error.message);
+          setIsUploading(false);
+          return;
         }
-      } catch (error) {
-        alert(error.message);
-        setIsUploading(false);
-        return;
       }
-      setIsUploading(false);
     }
-    onSave({
-      city_name: cityData.name,
-      visit_date: visitDate || null,
-      photo_url: uploadedPhotoUrl,
-    });
+
+    const photosToSave = Object.entries(finalPhotos)
+      .filter(([_, photo]) => photo && photo.url)
+      .map(([category, photo]) => ({ category, photo_url: photo.url }));
+
+    onSave({ 
+      city_name: cityData.name, 
+      visit_date: visitDate || null 
+    }, photosToSave);
+    setIsUploading(false);
   };
   
   const handleUnmarkCity = () => {
@@ -79,68 +100,58 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
 
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files && files[0]) {
-      handleFileChange(files[0]);
-    }
-  };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files && e.dataTransfer.files[0]) { handleFileChange(e.dataTransfer.files[0]); } };
   
   if (!cityData) return null;
 
-  const imageSourceForDisplay = newPhotoFile ? URL.createObjectURL(newPhotoFile) : photoUrl;
+  const currentPhoto = photos[activeCategory];
+  const imageSourceForDisplay = currentPhoto?.file ? URL.createObjectURL(currentPhoto.file) : currentPhoto?.url;
   const getOriginalCloudinaryUrl = (url) => {
     if (!url || !url.includes('/upload/')) return url;
     const parts = url.split('/upload/');
     const publicIdWithVersion = parts[1].substring(parts[1].indexOf('v'));
     return `${parts[0]}/upload/${publicIdWithVersion}`;
   };
-  const imageSourceForLightbox = newPhotoFile ? URL.createObjectURL(newPhotoFile) : getOriginalCloudinaryUrl(cityData.photo_url);
+  const imageSourceForLightbox = currentPhoto?.file ? URL.createObjectURL(currentPhoto.file) : getOriginalCloudinaryUrl(currentPhoto?.url);
 
   return (
     <>
       <div className="sidebar-header">
         <h3>{cityData.name}</h3>
-        {/* 【关键修复】直接将 cityData 对象传递给 onCommentClick */}
-        <button onClick={() => onCommentClick(cityData)} className="comment-button" aria-label="添加或编辑点评">
-          <CommentIcon />
-        </button>
+        <button onClick={() => onCommentClick(cityData)} className="comment-button" aria-label="添加或编辑点评"><CommentIcon /></button>
       </div>
       <div className="sidebar-body">
         <div className="form-group">
           <label>初次到达时间</label>
-          <DatePicker 
-            value={visitDate}
-            onChange={(newDate) => setVisitDate(newDate)}
-          />
+          <DatePicker value={visitDate} onChange={setVisitDate} />
         </div>
         <div className="form-group">
-          <label>照片 (4:3)</label>
-          <div 
-            className={`photo-area ${imageSourceForDisplay ? 'clickable' : ''}`} 
-            onClick={() => imageSourceForLightbox && onImageClick(imageSourceForLightbox)}
-          >
+          <div className="photo-header">
+            <label>照片 (4:3)</label>
+            <div className="photo-category-tabs">
+              {PHOTO_CATEGORIES.map(cat => (
+                <button 
+                  key={cat.id} 
+                  className={`category-tab ${activeCategory === cat.id ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(cat.id)}
+                  title={cat.name}
+                >
+                  <img src={cat.icon} alt={cat.name} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={`photo-area ${imageSourceForDisplay ? 'clickable' : ''}`} onClick={() => imageSourceForLightbox && onImageClick(imageSourceForLightbox)}>
             {imageSourceForDisplay ? <img src={imageSourceForDisplay} alt={cityData.name} /> : <div className="photo-placeholder">无照片</div>}
           </div>
           <input type="file" id="file-upload" accept="image/*" onChange={(e) => handleFileChange(e.target.files[0])} className="file-input-hidden" />
-          <label 
-            htmlFor="file-upload" 
-            className={`file-input-label ${isDragging ? 'dragging' : ''}`}
-            onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-          >
-            <UploadIcon />
-            <span className="file-name">{newPhotoFile ? newPhotoFile.name : '选择或拖拽文件'}</span>
+          <label htmlFor="file-upload" className={`file-input-label ${isDragging ? 'dragging' : ''}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+            <span className="file-name">{currentPhoto?.file ? currentPhoto.file.name : `为“${PHOTO_CATEGORIES.find(c => c.id === activeCategory).name}”选择文件`}</span>
           </label>
         </div>
       </div>
       <div className="sidebar-footer">
-        {cityData.isVisited ? (
-          <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '更新标记'}</button>
-        ) : (
-          <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '确认标记'}</button>
-        )}
+        <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '更新标记'}</button>
         {cityData.isVisited && <button onClick={handleUnmarkCity} className="button-danger">取消标记</button>}
       </div>
     </>
