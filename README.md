@@ -1,12 +1,34 @@
-# React + Vite
+zxytd.top
+# 🏙️ 网站功能概览（v1.0）
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 🌍 地图功能
+- **中国城市可视化地图**：支持全国地级市级别的展示。
+- **省份彩色分区**：不同省份有不同的填充颜色，视觉清晰。
+- **城市 Hover 高亮**：鼠标悬停在城市时会高亮显示。
+- **城市标记**：用户可以在地图上标记已访问的城市。
 
-Currently, two official plugins are available:
+## 🔍 城市搜索与导航
+- **搜索框**：支持城市快速搜索和定位。
+- **点击城市**：点击地图上的城市，可显示相关信息或执行标记操作。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 👤 用户系统
+- **登录/注册**：通过 Supabase 提供用户认证。
+- **城市访问记录**：每个用户都能保存自己访问过的城市。
+- **数据持久化**：用户的旅游记录存储在数据库中，随时登录即可查看。
 
-## Expanding the ESLint configuration
+## 🌓 个性化界面
+- **主题切换**：支持深色模式 / 浅色模式。
+- **配色切换**：支持多色彩 / 单色模式。
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 📊 数据统计
+- **访问统计**：支持查看已访问城市数量等基本统计信息。
+
+## 📄 导出功能
+- **导出 PDF**：支持导出旅游记录 PDF。
+- **进度条提示**：生成 PDF 时会显示实时进度。
+- **按日期倒序排列**：最新的访问记录会排在最前面。
+
+## 🚀 v1.0 特点
+- 从零搭建 React + Supabase + Cloudinary 技术栈。
+- 实现了完整的用户体系、地图交互、PDF 导出功能。
+- 支持基础的旅游足迹记录，并可在不同设备间同步。
