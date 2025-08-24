@@ -49,8 +49,16 @@ function App() {
       if (error) throw error;
       const cityMap = new Map(data.map(city => [city.city_name, city]));
       setVisitedCities(cityMap);
-    } catch (error) { console.error('获取城市数据失败:', error); }
+    } catch (error) {
+      console.error('获取城市数据失败:', error);
+    }
   }, [user]);
+
+useEffect(() => {
+  if (user) {
+    fetchVisitedCities();
+  }
+}, [user, fetchVisitedCities]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -80,8 +88,14 @@ function App() {
 
   const handleCityClick = (cityName) => {
     const visitedData = visitedCities.get(cityName);
-    if (isSidebarOpen && currentCityData && currentCityData.name === cityName) {
+
+    if (currentCityData?.name === cityName) {
+      // 如果点击同一个城市，先关闭侧边栏再重新打开
       setIsSidebarOpen(false);
+      setTimeout(() => {
+        setCurrentCityData({ name: cityName, isVisited: !!visitedData, ...visitedData });
+        setIsSidebarOpen(true);
+      }, 0);
     } else {
       setCurrentCityData({ name: cityName, isVisited: !!visitedData, ...visitedData });
       setIsSidebarOpen(true);
@@ -311,6 +325,7 @@ function App() {
         <div className={`sidebar-content-wrapper ${isSidebarOpen ? 'open' : ''}`}>
            {currentCityData && (
              <Sidebar
+               key={currentCityData.name} // ← 关键修改
                cityData={currentCityData}
                onSave={handleSaveCity}
                onUnmark={handleUnmarkCity}
