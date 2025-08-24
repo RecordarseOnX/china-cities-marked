@@ -109,10 +109,27 @@ function App() {
   };
 
   const handleSaveCity = async (cityPayload, photosPayload) => {
-    // 步骤1: 先保存或更新城市信息，确保我们有一个 visited_city_id
+    // 步骤0: 先查该城市是否已存在，判断是新增还是更新
+    const { data: existing, error: checkError } = await supabase
+      .from('visited_cities')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('city_name', cityPayload.city_name)
+      .maybeSingle();
+
+    if (checkError) {
+      toast.error("查询城市信息失败: " + checkError.message);
+      return;
+    }
+    const isUpdate = !!existing;
+
+    // 步骤1: 保存或更新城市信息
     const { data: city, error: cityError } = await supabase
       .from('visited_cities')
-      .upsert({ user_id: user.id, ...cityPayload }, { onConflict: 'user_id, city_name' })
+      .upsert(
+        { user_id: user.id, ...cityPayload },
+        { onConflict: 'user_id, city_name' }
+      )
       .select()
       .single();
 
@@ -121,7 +138,7 @@ function App() {
       return;
     }
 
-    // 步骤2: 删除该城市所有旧的照片，准备写入新照片
+    // 步骤2: 删除该城市所有旧的照片
     const { error: deleteError } = await supabase
       .from('photos')
       .delete()
@@ -131,7 +148,7 @@ function App() {
       toast.error("清理旧照片失败: " + deleteError.message);
       return;
     }
-    
+
     // 步骤3: 如果有新照片，就插入它们
     if (photosPayload && photosPayload.length > 0) {
       const photosToInsert = photosPayload.map(p => ({
@@ -139,18 +156,28 @@ function App() {
         category: p.category,
         photo_url: p.photo_url,
       }));
-      const { error: insertError } = await supabase.from('photos').insert(photosToInsert);
+      const { error: insertError } = await supabase
+        .from('photos')
+        .insert(photosToInsert);
+
       if (insertError) {
         toast.error("保存新照片失败: " + insertError.message);
         return;
       }
     }
 
-    toast.success('标记成功！');
+    // 成功提示：根据是新增还是更新来区分
+    if (isUpdate) {
+      toast.success("更新成功！");
+    } else {
+      toast.success("标记成功！");
+    }
+
+    // 刷新数据 & 更新侧边栏
     await fetchVisitedCities();
-    // 重新点击以刷新侧边栏
     handleCityClick(city.city_name);
   };
+
   
   const handleUnmarkCity = async (cityName) => {
     const promise = supabase.from('visited_cities').delete().match({ user_id: user.id, city_name: cityName });
