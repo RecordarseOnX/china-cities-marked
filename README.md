@@ -1,4 +1,4 @@
-zxytd.top
+[迹忆中国]((https://zxytd.top/)
 # 🏙️ 网站功能概览（v1.0）
 
 ## 🌍 地图功能
