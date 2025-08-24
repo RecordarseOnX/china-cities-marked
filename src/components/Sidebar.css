@@ -105,7 +105,6 @@
 .file-input-label .file-name {
   color: var(--text-secondary);
   font-size: 14px;
-  font-style: italic;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -150,4 +149,16 @@
   height: 20px;
   /* 确保 SVG 颜色能随主题变化 */
   filter: var(--svg-filter, none);
+}
+
+.form-group p {
+  margin: 0.5em 0;
+  color: var(--text-primary) !important; /* 提高优先级 */
+  font-size: 14px;
+}
+
+.form-group .rating {
+  color: #f59e0b !important; /* 提高优先级，确保星级颜色生效 */
+  margin: 0.5em 0;
+  font-size: 16px;
 }

@@ -48,7 +48,6 @@ function App() {
   const fetchVisitedCities = useCallback(async () => {
     if (!user) return;
     try {
-      // 【关键】使用新的查询，同时获取城市信息和关联的照片
       const { data, error } = await supabase
         .from('visited_cities')
         .select(`
@@ -62,7 +61,10 @@ function App() {
       if (error) throw error;
       const cityMap = new Map(data.map(city => [city.city_name, city]));
       setVisitedCities(cityMap);
-    } catch (error) { console.error('获取城市数据失败:', error); }
+    } catch (error) {
+      console.error('获取城市数据失败:', error);
+      toast.error('获取城市数据失败: ' + error.message);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -369,9 +371,6 @@ function App() {
   };
 
 
-
-
-
   const handleImageClick = (src) => setLightboxImage(src);
   const handleCloseLightbox = () => setLightboxImage(null);
   
@@ -385,33 +384,36 @@ function App() {
     setCommentingCity(null);
   };
   
-const handleSaveComment = async (cityName, comment, rating) => {
-  if (!user) return;
+  const handleSaveComment = async (cityName, comment, rating) => {
+    if (!user) return;
 
-  const payload = {
-    user_id: user.id,
-    city_name: cityName,
-    comment: comment || null,
-    rating: rating ? Number(rating) : 0
+    const payload = {
+      user_id: user.id,
+      city_name: cityName,
+      comment: comment || null,
+      rating: rating ? Number(rating) : 0
+    };
+
+    try {
+      const { error } = await supabase
+        .from('visited_cities')
+        .upsert(payload, { onConflict: 'user_id, city_name' });
+
+      if (error) throw error;
+
+      // 仅更新 currentCityData 的 comment 和 rating，保留 photos
+      setCurrentCityData(prev => prev && prev.name === cityName ? {
+        ...prev,
+        comment: comment || prev.comment,
+        rating: rating ? Number(rating) : prev.rating
+      } : prev);
+
+      toast.success('点评已保存！');
+    } catch (err) {
+      console.error("保存点评失败:", err);
+      toast.error("保存点评失败: " + err.message);
+    }
   };
-
-  try {
-    const { data, error } = await supabase
-      .from('visited_cities')
-      .upsert(payload, { onConflict: 'user_id, city_name' })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    setVisitedCities(prev => new Map(prev).set(cityName, data));
-    setCurrentCityData(prev => prev && prev.name === cityName ? { ...prev, ...data, isVisited: true } : prev);
-
-    toast.success('点评已保存！');
-  } catch (err) {
-    console.error("保存点评失败:", err);
-  }
-};
 
 
   if (!user) {
@@ -442,6 +444,7 @@ const handleSaveComment = async (cityName, comment, rating) => {
         <div className={`sidebar-content-wrapper ${isSidebarOpen ? 'open' : ''}`}>
            {currentCityData && (
              <Sidebar
+               key={currentCityData.name}
                cityData={currentCityData}
                onSave={handleSaveCity}
                onUnmark={handleUnmarkCity}

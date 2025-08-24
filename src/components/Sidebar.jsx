@@ -1,7 +1,6 @@
-// src/components/Sidebar.jsx
-
+// Sidebar.jsx
 import React, { useState, useEffect } from 'react';
-import DatePicker from './DatePicker'; // 1. 引入新组件
+import DatePicker from './DatePicker';
 import './Sidebar.css'; 
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -18,7 +17,6 @@ const CommentIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 );
 
-// 照片类别配置
 const PHOTO_CATEGORIES = [
   { id: 'scenery', name: '风景', icon: '/icons/scenery.svg' },
   { id: 'friends', name: '朋友', icon: '/icons/friends.svg' },
@@ -29,6 +27,7 @@ const PHOTO_CATEGORIES = [
 function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
   const [visitDate, setVisitDate] = useState('');
   const [photos, setPhotos] = useState({});
+
   const [activeCategory, setActiveCategory] = useState('scenery');
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -36,11 +35,16 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
   useEffect(() => {
     if (cityData) {
       setVisitDate(cityData.visit_date || new Date().toISOString().split('T')[0]);
-      const photosObject = (cityData.photos || []).reduce((acc, photo) => {
-        acc[photo.category] = { url: photo.photo_url, file: null };
-        return acc;
-      }, {});
-      setPhotos(photosObject);
+      setPhotos(prev => {
+        if (!prev || Object.keys(prev).length === 0 || cityData.name !== prev.cityName) {
+          const photosObject = (cityData.photos || []).reduce((acc, photo) => {
+            acc[photo.category] = { url: photo.photo_url, file: null };
+            return acc;
+          }, {});
+          return { ...photosObject, cityName: cityData.name };
+        }
+        return prev;
+      });
       setActiveCategory('scenery');
     }
   }, [cityData]);
@@ -125,6 +129,7 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
           <label>初次到达时间</label>
           <DatePicker value={visitDate} onChange={setVisitDate} />
         </div>
+
         <div className="form-group">
           <div className="photo-header">
             <label>照片 (4:3)</label>
@@ -149,6 +154,19 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
             <span className="file-name">{currentPhoto?.file ? currentPhoto.file.name : `为“${PHOTO_CATEGORIES.find(c => c.id === activeCategory).name}”选择文件`}</span>
           </label>
         </div>
+                {/* 添加 comment 和 rating 显示 */}
+        {cityData.comment && (
+          <div className="form-group">
+            <label>点评</label>
+            <p>{cityData.comment}</p>
+          </div>
+        )}
+        {cityData.rating > 0 && (
+          <div className="form-group">
+            <label>评分</label>
+            <p className="rating">{'★'.repeat(cityData.rating) + '☆'.repeat(10 - cityData.rating)}</p>
+          </div>
+        )}
       </div>
       <div className="sidebar-footer">
         <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '更新标记'}</button>
