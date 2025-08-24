@@ -1,20 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DatePicker.css';
 
-// 辅助函数：格式化数字，确保为两位
 const pad = (num) => num.toString().padStart(2, '0');
-
-// 辅助函数：获取某年某月有多少天
 const getDaysInMonth = (year, month) => new Date(year, month, 0).getDate();
 
 function DatePicker({ value, onChange }) {
   const parseDate = (dateString) => {
     const date = dateString ? new Date(dateString) : new Date();
-    return {
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      day: date.getDate(),
-    };
+    return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
   };
 
   const [date, setDate] = useState(parseDate(value));
@@ -22,15 +15,16 @@ function DatePicker({ value, onChange }) {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   const containerRef = useRef(null);
+  const yearRef = useRef(null);
+  const monthRef = useRef(null);
+  const dayRef = useRef(null);
 
   useEffect(() => setDate(parseDate(value)), [value]);
 
   useEffect(() => {
     const newMaxDays = getDaysInMonth(date.year, date.month);
     setMaxDays(newMaxDays);
-    if (date.day > newMaxDays) {
-      setDate(d => ({ ...d, day: newMaxDays }));
-    }
+    if (date.day > newMaxDays) setDate(d => ({ ...d, day: newMaxDays }));
     const newDateString = `${date.year}-${pad(date.month)}-${pad(date.day)}`;
     onChange(newDateString);
   }, [date.year, date.month, date.day]);
@@ -51,51 +45,93 @@ function DatePicker({ value, onChange }) {
     });
   };
 
-  // 点击显示/隐藏弹窗
   const handlePartClick = () => setIsPopupOpen(prev => !prev);
 
-  // 点击弹窗外关闭
+  // 点击外部关闭弹窗
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsPopupOpen(false);
-      }
+      if (containerRef.current && !containerRef.current.contains(e.target)) setIsPopupOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 原生滚轮阻止冒泡
+  useEffect(() => {
+    const parts = containerRef.current.querySelectorAll('.date-picker-part');
+
+    const wheelHandler = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const part = e.currentTarget.dataset.part;
+      handleWheel(part, e.deltaY);
+    };
+
+    parts.forEach(part => part.addEventListener('wheel', wheelHandler, { passive: false }));
+
+    return () => {
+      parts.forEach(part => part.removeEventListener('wheel', wheelHandler));
+    };
+  }, []);
+
+  // 弹窗打开时滚动到选中项
+  useEffect(() => {
+    if (isPopupOpen) {
+      yearRef.current?.scrollIntoView({ block: 'center' });
+      monthRef.current?.scrollIntoView({ block: 'center' });
+      dayRef.current?.scrollIntoView({ block: 'center' });
+    }
+  }, [isPopupOpen]);
+
   return (
     <div className="date-picker-container" ref={containerRef}>
-      <div className="date-picker-part" data-part="year" onClick={handlePartClick} onWheel={(e)=>{e.preventDefault(); handleWheel('year', e.deltaY);}}>
+      <div className="date-picker-part" data-part="year" onClick={handlePartClick}>
         {date.year}年
       </div>
-      <div className="date-picker-part" data-part="month" onClick={handlePartClick} onWheel={(e)=>{e.preventDefault(); handleWheel('month', e.deltaY);}}>
+      <div className="date-picker-part" data-part="month" onClick={handlePartClick}>
         {pad(date.month)}月
       </div>
-      <div className="date-picker-part" data-part="day" onClick={handlePartClick} onWheel={(e)=>{e.preventDefault(); handleWheel('day', e.deltaY);}}>
+      <div className="date-picker-part" data-part="day" onClick={handlePartClick}>
         {pad(date.day)}日
       </div>
 
       {isPopupOpen && (
         <div className="date-picker-popup">
+          {/* 年份列 */}
           <div className="popup-column">
             {Array.from({ length: 200 }, (_, i) => 1900 + i).map(y => (
-              <div key={y} className={`popup-item ${y === date.year ? 'selected' : ''}`} onClick={() => setDate(prev => ({ ...prev, year: y }))}>
+              <div
+                key={y}
+                ref={y === date.year ? yearRef : null}
+                className={`popup-item ${y === date.year ? 'selected' : ''}`}
+                onClick={() => setDate(prev => ({ ...prev, year: y }))}
+              >
                 {y}
               </div>
             ))}
           </div>
+          {/* 月份列 */}
           <div className="popup-column">
             {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-              <div key={m} className={`popup-item ${m === date.month ? 'selected' : ''}`} onClick={() => setDate(prev => ({ ...prev, month: m }))}>
+              <div
+                key={m}
+                ref={m === date.month ? monthRef : null}
+                className={`popup-item ${m === date.month ? 'selected' : ''}`}
+                onClick={() => setDate(prev => ({ ...prev, month: m }))}
+              >
                 {pad(m)}
               </div>
             ))}
           </div>
+          {/* 日期列 */}
           <div className="popup-column">
             {Array.from({ length: maxDays }, (_, i) => i + 1).map(d => (
-              <div key={d} className={`popup-item ${d === date.day ? 'selected' : ''}`} onClick={() => setDate(prev => ({ ...prev, day: d }))}>
+              <div
+                key={d}
+                ref={d === date.day ? dayRef : null}
+                className={`popup-item ${d === date.day ? 'selected' : ''}`}
+                onClick={() => setDate(prev => ({ ...prev, day: d }))}
+              >
                 {pad(d)}
               </div>
             ))}
