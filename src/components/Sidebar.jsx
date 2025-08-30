@@ -75,7 +75,7 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
           if (data.secure_url) {
             finalPhotos[catId] = { url: data.secure_url, file: null };
           } else {
-            throw new Error(data.error.message || `“${category.name}”图片上传失败`);
+            throw new Error(data.error?.message || `“${category.name}”图片上传失败`);
           }
         } catch (error) {
           toast.error(error.message);
@@ -89,12 +89,16 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
       .filter(([_, photo]) => photo && photo.url)
       .map(([category, photo]) => ({ category, photo_url: photo.url }));
 
-    onSave({ 
-      city_name: cityData.name, 
-      visit_date: visitDate || null 
-    }, photosToSave);
-    setIsUploading(false);
+    try {
+      await onSave(
+        { city_name: cityData.name, visit_date: visitDate || null },
+        photosToSave
+      );
+    } finally {
+      setIsUploading(false); // 确保保存后再恢复
+    }
   };
+
   
   const handleUnmarkCity = () => {
     if (window.confirm(`确定要取消标记城市 "${cityData.name}" 吗？`)) {
@@ -169,7 +173,11 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
         )}
       </div>
       <div className="sidebar-footer">
-        <button onClick={handleSave} disabled={isUploading} className="button-primary">{isUploading ? '上传中...' : '更新标记'}</button>
+        <button onClick={handleSave} disabled={isUploading} className="button-primary">
+          {isUploading ? (
+            <><span className="spinner"></span> 保存中...</>
+          ) : cityData.isVisited ? '更新标记' : '确认标记'}
+        </button>
         {cityData.isVisited && <button onClick={handleUnmarkCity} className="button-danger">取消标记</button>}
       </div>
     </>
