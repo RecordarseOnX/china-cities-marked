@@ -11,6 +11,8 @@ import Sidebar from './components/Sidebar';
 import ThemeToggle from './components/ThemeToggle';
 import ImageModal from './components/ImageModal';
 import CommentModal from './components/CommentModal';
+import NotificationModal from './components/NotificationModal';
+
 import './App.css';
 
 import jsPDF from 'jspdf';
@@ -35,6 +37,8 @@ function App() {
   const [commentingCity, setCommentingCity] = useState(null);
   const [colorMode, setColorMode] = useState('colorful');
   const [progress, setProgress] = useState(0);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
   
   const rightColumnRef = useRef();
   
@@ -467,10 +471,13 @@ function App() {
         <div className="user-info-bar">
           <span>{user.username}</span>
           <span className="separator">·</span>
+          <button onClick={handleLogout} className="logout-button">退出</button>
           <button onClick={handleExportPDF} className="export-button" disabled={isExporting}>
             {isExporting ? '生成中...' : '导出'}
           </button>
-          <button onClick={handleLogout} className="logout-button">退出</button>
+          <button onClick={() => setIsNotificationOpen(true)} className="notification-button">
+            通知
+          </button>
         </div>
         <Search cityLayers={cityLayers} onCitySelect={handleCityClick} />
         <ThemeToggle theme={theme} toggleTheme={toggleTheme} colorMode={colorMode} toggleColorMode={toggleColorMode} />
@@ -505,6 +512,13 @@ function App() {
         cityData={commentingCity}
         onSave={handleSaveComment}
       />
+
+      <NotificationModal
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        content={`📢 更新公告\n\n1. 优化了标记和更新的反馈，减少卡顿感。\n2. 新增了公告功能，如你所见。\n3. 优化了弹窗的关闭按钮设计。`}
+      />
+
     </div>
   );
 }

@@ -95,17 +95,49 @@
 .modal-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: center;  /* 垂直居中 */
+  position: relative;
+  margin-bottom: 16px;
 }
 
-.close-button {
-  background: transparent;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
+.modal-header h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--text-primary);
+  line-height: 1; /* 避免额外行高导致上下不齐 */
+}
+
+/* 关闭按钮 */
+.close-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%); /* 按钮整体居中对齐标题 */
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  color: var(--text-secondary);
 }
 
 .close-button:hover {
-  color: var(--accent-color);
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
 }
+
+/* 关闭按钮里的 SVG 图标 */
+.close-button svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  transform: translateY(-1px); /* 微调，解决“偏下”的错觉 */
+}
+
+

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import useOnClickOutside from '../hooks/useOnClickOutside';
 import StarRating from './StarRating';
 import './CommentModal.css';
+import { X } from "lucide-react";
 
 function CommentModal({ isOpen, onClose, cityData, onSave }) {
   const [comment, setComment] = useState('');
@@ -36,7 +37,9 @@ function CommentModal({ isOpen, onClose, cityData, onSave }) {
       <div className="comment-modal-content" ref={modalRef}>
         <div className="modal-header">
           <h4>点评: {cityData.name}</h4>
-          <button className="close-button" onClick={handleCloseWithoutSave}>×</button>
+          <button className="close-button" onClick={handleCloseWithoutSave}>
+            <X size={20} strokeWidth={2.2} /> {/* ✅ SVG 图标替换 × */}
+          </button>
         </div>
 
         <textarea

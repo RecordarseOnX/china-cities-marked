@@ -126,7 +126,7 @@ function Sidebar({ cityData, onSave, onUnmark, onImageClick, onCommentClick }) {
     <>
       <div className="sidebar-header">
         <h3>{cityData.name}</h3>
-        <button onClick={() => onCommentClick(cityData)} className="comment-button" aria-label="添加或编辑点评"><CommentIcon /></button>
+        <button onClick={() => onCommentClick(cityData)} className="comment-button" aria-label="添加或编辑点评">点评&nbsp;<CommentIcon /></button>
       </div>
       <div className="sidebar-body">
         <div className="form-group">
