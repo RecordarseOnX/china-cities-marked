@@ -29,6 +29,9 @@ importers:
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
+      leaflet-svg-shape-markers:
+        specifier: ^1.4.0
+        version: 1.4.0
       lucide-react:
         specifier: ^0.542.0
         version: 0.542.0(react@19.1.1)
@@ -1307,6 +1310,9 @@ packages:
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==, tarball: https://registry.npmmirror.com/keyv/-/keyv-4.5.4.tgz}
+
+  leaflet-svg-shape-markers@1.4.0:
+    resolution: {integrity: sha512-vUBwso51+4ZVGcLZbhdBGxz+xrbul5jDYxool2yTKbIjAC6rvOMLjr8YBTQbLaa1LBRBQIaWUbmCafdXm17pxw==, tarball: https://registry.npmmirror.com/leaflet-svg-shape-markers/-/leaflet-svg-shape-markers-1.4.0.tgz}
 
   leaflet@1.9.4:
     resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==, tarball: https://registry.npmmirror.com/leaflet/-/leaflet-1.9.4.tgz}
@@ -3589,6 +3595,8 @@ snapshots:
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
+
+  leaflet-svg-shape-markers@1.4.0: {}
 
   leaflet@1.9.4: {}
 

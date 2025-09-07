@@ -21,6 +21,7 @@ import { interpolateSinebow } from 'd3-scale-chromatic';
 // 引入 Turf.js
 import { centroid } from '@turf/turf';
 import { booleanPointInPolygon } from '@turf/turf';
+import * as turf from '@turf/turf'; 
 
 // --- 2. 主组件 ---
 function App() {
@@ -110,22 +111,51 @@ function App() {
     }
   }, [user, fetchVisitedCities]);
 
-  // 省份访问进度计算
-  const provinceProgress = useMemo(() => {
-    const progressMap = new Map();
-    if (provinceToCitiesMap.size === 0) return progressMap;
-    
+  // --- 【核心修改】计算全国统一进度和全局水位线 ---
+// App.jsx (大约在第114行)
+
+  // --- 【核心修改】计算全国统一进度、全局水位线，并为每个省份附加其独立的进度信息 ---
+// App.jsx (大约在第114行)
+
+  const { globalWaterLat, provinceDataMap } = useMemo(() => {
+    if (!provinceGeojsonData?.features || !cityGeojsonData?.features || provinceToCitiesMap.size === 0) {
+      return { globalWaterLat: 20, provinceDataMap: new Map() };
+    }
+
+    // 1. 为 "全国水位" 模式计算数据
+    const totalCitiesInChina = cityGeojsonData.features.length;
+    const visitedCitiesCount = visitedCities.size;
+    const nationwideProgress = totalCitiesInChina > 0 ? visitedCitiesCount / totalCitiesInChina : 0;
+    const START_LAT = 20;
+    const NORTHERNMOST_LAT = Math.max(...provinceGeojsonData.features.map(f => turf.bbox(f)[3]));
+    const globalWaterLat = START_LAT + nationwideProgress * (NORTHERNMOST_LAT - START_LAT);
+
+    // 2. 为 "独立染色" 模式和 Tooltip 计算数据
+    const provinceDataMap = new Map();
     for (const [provinceName, cities] of provinceToCitiesMap.entries()) {
-      const total = cities.length;
-      const visitedCount = cities.filter(city => visitedCities.has(city)).length;
-      progressMap.set(provinceName, {
-        visited: visitedCount,
-        total,
-        progress: total > 0 ? visitedCount / total : 0,
+      const cityStatusMap = new Map(cities.map(cityName => [cityName, visitedCities.has(cityName)]));
+      const visitedCount = [...cityStatusMap.values()].filter(Boolean).length;
+      const totalCount = cityStatusMap.size;
+      
+      // 计算省份独立的、非线性的进度 ("第一个50%"逻辑)
+      let provinceOwnProgress = 0;
+      if (visitedCount >= 1) {
+        provinceOwnProgress = 0.5;
+        if (totalCount > 1) {
+          provinceOwnProgress += (visitedCount - 1) / (totalCount - 1) * 0.5;
+        }
+      }
+
+      // 将两种模式所需的数据都准备好
+      provinceDataMap.set(provinceName, {
+        cities: cityStatusMap,       // 用于 Tooltip
+        progress: provinceOwnProgress, // 用于 "独立染色" 模式
       });
     }
-    return progressMap;
-  }, [visitedCities, provinceToCitiesMap]);
+
+    return { globalWaterLat, provinceDataMap };
+    
+  }, [visitedCities, cityGeojsonData, provinceGeojsonData, provinceToCitiesMap]);
 
   const handleMapLoad = useCallback((map) => {
     setMapInstance(map);
@@ -460,7 +490,8 @@ function App() {
         onCityClick={handleCityClick}
         onProvinceClick={handleProvinceClick}
         colorMode={colorMode}
-        provinceProgress={provinceProgress}
+        provinceProgress={provinceDataMap} // <-- 使用新的变量名
+        globalWaterLat={globalWaterLat}              // <-- 新增：传递全局水位线
         onMapLoad={handleMapLoad}
         isZoomSwitchEnabled={isZoomSwitchEnabled}
       />
