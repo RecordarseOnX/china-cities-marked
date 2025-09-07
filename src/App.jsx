@@ -461,6 +461,7 @@ function App() {
     return <Auth onLoginSuccess={setUser} />;
   }
 
+
   return (
     <div id="app-container">
       <Toaster position="top-center" toastOptions={{ duration: 3000, style: { background: 'var(--panel-color)', color: 'var(--text-primary)', boxShadow: 'var(--shadow-md)' } }}/>
@@ -472,6 +473,7 @@ function App() {
           <span>{user.username}</span>
           <span className="separator">·</span>
           <button onClick={handleLogout} className="logout-button">退出</button>
+          {/* 确保 handleExportPDF 函数在您的组件中已定义 */}
           <button onClick={handleExportPDF} className="export-button" disabled={isExporting}>
             {isExporting ? '生成中...' : '导出'}
           </button>
@@ -479,14 +481,21 @@ function App() {
             通知
           </button>
         </div>
+        
         <Search cityLayers={cityLayers} onCitySelect={handleCityClick} />
-        <ThemeToggle theme={theme} toggleTheme={toggleTheme} colorMode={colorMode} toggleColorMode={toggleColorMode} />
-          {isExporting && (
-            <div className="pdf-progress" style={{ marginTop: 8 }}>
-              <progress value={progress} max={100} style={{ width: '100%' }} />
-              <span>{progress}%</span>
-            </div>
-          )}
+
+        {/* 将主题切换按钮和新标题包裹在一个 flex 容器中 */}
+        <div className="theme-title-container">
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} colorMode={colorMode} toggleColorMode={toggleColorMode} />
+          <span className="inline-title">因为路就在脚下</span>
+        </div>
+        
+        {isExporting && (
+          <div className="pdf-progress" style={{ marginTop: 8 }}>
+            <progress value={progress} max={100} style={{ width: '100%' }} />
+            <span>{progress}%</span>
+          </div>
+        )}
       </div>
 
       <div className="ui-right-column" ref={rightColumnRef}>
@@ -506,6 +515,7 @@ function App() {
       </div>
       
       {lightboxImage && <ImageModal src={lightboxImage} onClose={handleCloseLightbox} />}
+      
       <CommentModal
         isOpen={isCommentModalOpen}
         onClose={handleCloseCommentModal}
@@ -516,11 +526,12 @@ function App() {
       <NotificationModal
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        content={`📢 更新公告\n\n1. 优化了标记和更新的反馈，减少卡顿感。\n2. 新增了公告功能，如你所见。\n3. 优化了弹窗的关闭按钮设计。`}
+        content={`📢 \n\n1. 添加了一个网站标题。`}
       />
 
     </div>
   );
+
 }
 
 export default App;

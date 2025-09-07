@@ -7,19 +7,22 @@
   background-color: var(--background-color);
 }
 
-/* --- 左侧聚合布局 --- */
+/* --- 左侧聚合布局 (恢复水平布局) --- */
 .ui-top-left-cluster {
   position: absolute;
   top: 10px;
   left: 10px;
   z-index: 1000;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  pointer-events: none;
+  flex-direction: row; /* 确保所有直接子元素水平排列 */
+  align-items: center;   /* 垂直居中对齐所有子项 */
+  gap: 10px;             /* 子项之间的水平间距 */
+  flex-wrap: wrap;       /* 允许在空间不足时换行 */
 }
-.ui-top-left-cluster > * {
-  pointer-events: auto;
+
+/* 如果导出进度条出现，让它单独占一行 */
+.pdf-progress {
+  width: 100%;
 }
 
 /* --- 用户信息栏 --- */
@@ -33,11 +36,11 @@
   align-items: center;
   font-weight: 500;
   border: 1px solid var(--border-color);
-  gap: 0;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .user-info-bar .separator {
   color: var(--border-color);
-  margin: 0 8px;
 }
 .user-info-bar button {
   background: none;
@@ -70,6 +73,7 @@
   border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 #searchInput {
   width: 100%;
@@ -111,6 +115,36 @@
 .search-item.active {
   background-color: rgba(59, 130, 246, 0.1);
 }
+
+
+/* --- 【问题1 修正】调整按钮和标题的容器 --- */
+.theme-title-container {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* 减小间隙，与其他控件保持一致 */
+}
+
+/* --- 【问题2 修正】为标题添加背景和边框 --- */
+.inline-title {
+  height: 40px; /* 高度与其他控件统一 */
+  padding: 0 16px; /* 左右内边距，让盒子比文字宽 */
+  background: var(--panel-color); /* 白色背景 */
+  border: 1px solid var(--border-color); /* 灰色细框线 */
+  border-radius: 8px; /* 圆角 */
+  box-shadow: var(--shadow-md); /* 统一的阴影 */
+  
+  /* 使用 flex 实现文本完美居中 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  /* 文本样式 */
+  font-size: 16px; /* 字体大小与其他控件统一 */
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap; /* 防止文字换行 */
+}
+
 
 /* --- 右侧栏布局 --- */
 .ui-right-column {
