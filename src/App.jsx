@@ -526,7 +526,7 @@ function App() {
       <NotificationModal
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        content={`📢 \n\n1. 添加了一个网站标题。`}
+        content={`📢 \n\n1. 添加了一个网站标题。 \n2. 修改了网站名称。`}
       />
 
     </div>
