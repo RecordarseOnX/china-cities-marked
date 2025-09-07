@@ -60,3 +60,15 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* .wave {
+  animation: waveColor 1s ease-in-out infinite alternate;
+}
+@keyframes waveColor {
+  from {
+    fill: rgba(0, 180, 216, 1);
+  }
+  to {
+    fill: rgba(0, 160, 200, 1);
+  }
+} */
