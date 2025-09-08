@@ -560,7 +560,7 @@ function App() {
       <NotificationModal
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        content={`📢 \n\n1. 添加了一个网站标题。 \n2. 修改了网站名称。`}
+        content={`📢\n- 添加了省级的缩放，可以通过图层按钮关闭\n- 省级也有两套配色，一套水位设计，一套浓度设计`}
       />
     </div>
   );

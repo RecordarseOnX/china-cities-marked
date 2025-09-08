@@ -21,19 +21,6 @@ function getColorfulColor(name) {
 }
 
 // ==============================
-// --- SVG 滤镜定义 (无变化) ---
-const WaterFilter = () => (
-  <svg style={{ display: 'none' }}>
-    <defs>
-      <filter id="waterWave">
-        <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="1" result="turbulence" />
-        <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="15" xChannelSelector="R" yChannelSelector="G" />
-      </filter>
-    </defs>
-  </svg>
-);
-
-// ==============================
 // --- 缩放处理组件 (无变化) ---
 function ZoomHandler({ setActiveLayer, ZOOM_THRESHOLD, isZoomSwitchEnabled }) {
   const map = useMap();
@@ -64,10 +51,9 @@ function ZoomHandler({ setActiveLayer, ZOOM_THRESHOLD, isZoomSwitchEnabled }) {
 }
 
 // ==============================
-// --- 省份多边形组件 ---
+// --- 省份多边形组件 (无变化) ---
 const ProvincePolygon = ({ feature, progressData, onProvinceClick, colorMode, globalWaterLat }) => {
   const provinceName = feature.properties.name;
-  const fullRef = useRef(null);
   const lineRgb = getComputedStyle(document.documentElement).getPropertyValue('--map-line-color-rgb').trim();
 
   let fullPositions = [];
@@ -86,59 +72,24 @@ const ProvincePolygon = ({ feature, progressData, onProvinceClick, colorMode, gl
     }
   }
 
-
-// ================== 单色模式优化 ==================
-if (colorMode === 'single') {
-  const provinceOwnProgress = progressData?.progress ?? 0;
-
-  if (provinceOwnProgress <= 0) {
-    // 未点亮地区完全不渲染
+  if (colorMode === 'single') {
+    const provinceOwnProgress = progressData?.progress ?? 0;
+    if (provinceOwnProgress <= 0) {
+      return (
+        <Polygon positions={fullPositions} pathOptions={{ color: `rgb(${lineRgb})`, weight: 0.5, fillColor: 'transparent' }} eventHandlers={{ click: () => onProvinceClick(feature), mouseover: e => e.target.bindTooltip(tooltipText, { className: 'custom-tooltip', permanent: false, sticky: true }).openTooltip(), mouseout: e => e.target.closeTooltip() }} />
+      );
+    }
+    const minColor = [202, 240, 248], maxColor = [0, 180, 216];
+    let p_remapped = 0; 
+    if (provinceOwnProgress > 0.5) p_remapped = (provinceOwnProgress - 0.5) * 2;
+    const p_final = Math.pow(p_remapped, 0.6);
+    const interpolateColor = minColor.map((start, i) => Math.round(start + (maxColor[i] - start) * p_final));
+    const fillColor = `rgb(${interpolateColor.join(',')})`;
     return (
-      <Polygon
-        ref={fullRef}
-        positions={fullPositions}
-        pathOptions={{ color: `rgb(${lineRgb})`, weight: 0.5, fillColor: 'transparent', fillOpacity: 0 }}
-        eventHandlers={{
-          click: () => onProvinceClick(feature),
-          mouseover: e => e.target.bindTooltip(tooltipText, { className: 'custom-tooltip', permanent: false, sticky: true }).openTooltip(),
-          mouseout: e => e.target.closeTooltip(),
-        }}
-      />
+      <Polygon positions={fullPositions} pathOptions={{ color: `rgb(${lineRgb})`, weight: 0.5, fillColor, fillOpacity: 1 }} eventHandlers={{ click: () => onProvinceClick(feature), mouseover: e => e.target.bindTooltip(tooltipText, { className: 'custom-tooltip', permanent: false, sticky: true }).openTooltip(), mouseout: e => e.target.closeTooltip() }} />
     );
   }
 
-  // 有进度省份颜色渐变
-  const minColor = [230, 245, 255];  // 超淡蓝，非常低完成度
-  const maxColor = [0, 180, 216];    // 最浓蓝，高完成度
-  const interpolateColor = minColor.map((start, i) =>
-    Math.round(start + (maxColor[i] - start) * provinceOwnProgress)
-  );
-  const fillColor = `rgb(${interpolateColor.join(',')})`;
-
-  const pathOptions = {
-    color: `rgb(${lineRgb})`,
-    weight: 0.5,
-    fillColor: fillColor,
-    fillOpacity: 1, // 固定不透明度
-  };
-
-  return (
-    <Polygon
-      ref={fullRef}
-      positions={fullPositions}
-      pathOptions={pathOptions}
-      eventHandlers={{
-        click: () => onProvinceClick(feature),
-        mouseover: e => e.target.bindTooltip(tooltipText, { className: 'custom-tooltip', permanent: false, sticky: true }).openTooltip(),
-        mouseout: e => e.target.closeTooltip(),
-      }}
-    />
-  );
-}
-
-
-
-  // ================== 彩色模式（全国统一水位） ==================
   if (colorMode === 'colorful') {
     let waterPositions = [];
     if (globalWaterLat > 20) {
@@ -157,29 +108,15 @@ if (colorMode === 'single') {
         }
       } catch (e) { console.error('Province water clip error:', provinceName, e); }
     }
-
     return (
       <>
         {waterPositions.length > 0 && (
-          <Polygon
-            positions={waterPositions}
-            pathOptions={{ color: 'transparent', weight: 0, fillColor: 'rgba(0,180,216,1)', fillOpacity: 1 }}
-          />
+          <Polygon positions={waterPositions} pathOptions={{ color: 'transparent', weight: 0, fillColor: '#00b4d8', fillOpacity: 0.7 }} />
         )}
-        <Polygon
-          ref={fullRef}
-          positions={fullPositions}
-          pathOptions={{ color: `rgb(${lineRgb})`, weight: 0.5, fillColor: 'transparent' }}
-          eventHandlers={{
-            click: () => onProvinceClick(feature),
-            mouseover: e => e.target.bindTooltip(tooltipText, { className: 'custom-tooltip', permanent: false, sticky: true }).openTooltip(),
-            mouseout: e => e.target.closeTooltip(),
-          }}
-        />
+        <Polygon positions={fullPositions} pathOptions={{ color: `rgb(${lineRgb})`, weight: 0.5, fillColor: 'transparent' }} eventHandlers={{ click: () => onProvinceClick(feature), mouseover: e => e.target.bindTooltip(tooltipText, { className: 'custom-tooltip', permanent: false, sticky: true }).openTooltip(), mouseout: e => e.target.closeTooltip() }} />
       </>
     );
   }
-
   return null;
 };
 
@@ -210,15 +147,45 @@ function Map({
     }
   }, [activeLayer, cityGeojsonData, setCityLayers]);
 
+  // ▼▼▼ 【核心修改】在这里为城市添加悬停事件 ▼▼▼
   const onEachCityFeature = (feature, layer) => {
     const name = feature.properties.name;
+    
+    // 绑定悬浮提示 (Tooltip)
     layer.bindTooltip(name, { className: 'custom-tooltip', permanent: false, follow: true, sticky: true });
-    layer.on({ click: e => { e.target.closeTooltip(); onCityClick(name); } });
+
+    // 绑定所有事件监听
+    layer.on({
+      // 鼠标移入事件
+      mouseover: (e) => {
+        const currentLayer = e.target;
+        // 仅当这个城市【未被】点亮时，才应用悬停效果
+        if (!selectedCities.has(name)) {
+          currentLayer.setStyle({
+            fillOpacity: 0.4 // 设置一个半透明度作为高亮
+          });
+        }
+      },
+      // 鼠标移出事件
+      mouseout: (e) => {
+        const currentLayer = e.target;
+        // 仅当这个城市【未被】点亮时，才恢复其样式
+        if (!selectedCities.has(name)) {
+          // 使用 resetStyle 可以安全地将其恢复到 <GeoJSON> 组件 style 属性定义的原始状态
+          cityGeoJsonRef.current.resetStyle(currentLayer);
+        }
+      },
+      // 点击事件 (保留原有逻辑)
+      click: e => {
+        e.target.closeTooltip();
+        onCityClick(name);
+      },
+    });
   };
+  // ▲▲▲ 【核心修改】结束 ▲▲▲
 
   return (
     <MapContainer center={[35, 105]} zoom={4} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
-      <WaterFilter />
       <MapInstanceSetter />
       <ZoomHandler setActiveLayer={setActiveLayer} ZOOM_THRESHOLD={ZOOM_THRESHOLD} isZoomSwitchEnabled={isZoomSwitchEnabled} />
       {/* 城市层 */}
@@ -230,10 +197,11 @@ function Map({
           style={feature => ({
             color: `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--map-line-color-rgb').trim()})`,
             weight: 0.5,
+            // 初始样式：已点亮的城市有 0.6 的不透明度，未点亮的为 0
             fillOpacity: selectedCities.has(feature.properties.name) ? 0.6 : 0,
             fillColor: colorMode === 'single' ? '#48cae4' : getColorfulColor(feature.properties.name),
           })}
-          onEachFeature={onEachCityFeature}
+          onEachFeature={onEachCityFeature} // 应用我们修改过的事件处理器
         />
       )}
       {/* 省份层 */}
