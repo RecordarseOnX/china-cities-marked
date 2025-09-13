@@ -124,34 +124,40 @@ function App() {
       return { globalWaterLat: 20, provinceDataMap: new Map() };
     }
 
-    // 1. 为 "全国水位" 模式计算数据
-    const totalCitiesInChina = cityGeojsonData.features.length;
+    // 1. "全国水位" 模式计算 (保持不变)
+    const totalCitiesInChina = new Set(cityGeojsonData.features.map(f => f.properties.name)).size; // 使用去重后的总数
     const visitedCitiesCount = visitedCities.size;
     const nationwideProgress = totalCitiesInChina > 0 ? visitedCitiesCount / totalCitiesInChina : 0;
     const START_LAT = 20;
     const NORTHERNMOST_LAT = Math.max(...provinceGeojsonData.features.map(f => turf.bbox(f)[3]));
     const globalWaterLat = START_LAT + nationwideProgress * (NORTHERNMOST_LAT - START_LAT);
 
-    // 2. 为 "独立染色" 模式和 Tooltip 计算数据
+    // 2. "独立染色" 模式和 Tooltip 计算 (核心修改)
     const provinceDataMap = new Map();
     for (const [provinceName, cities] of provinceToCitiesMap.entries()) {
       const cityStatusMap = new Map(cities.map(cityName => [cityName, visitedCities.has(cityName)]));
       const visitedCount = [...cityStatusMap.values()].filter(Boolean).length;
       const totalCount = cityStatusMap.size;
       
-      // 计算省份独立的、非线性的进度 ("第一个50%"逻辑)
       let provinceOwnProgress = 0;
-      if (visitedCount >= 1) {
-        provinceOwnProgress = 0.5;
-        if (totalCount > 1) {
-          provinceOwnProgress += (visitedCount - 1) / (totalCount - 1) * 0.5;
+      if (totalCount > 0) { // 确保省份内有城市
+        // 【核心修正】
+        // 如果省份只有一个城市 (如直辖市) 且已被访问，进度直接为 100%
+        if (totalCount === 1 && visitedCount === 1) {
+          provinceOwnProgress = 1; // 1 代表 100%
+        } 
+        // 否则，使用您原有的 "第一个50%" 逻辑
+        else if (visitedCount >= 1) {
+          provinceOwnProgress = 0.5;
+          if (totalCount > 1) {
+            provinceOwnProgress += (visitedCount - 1) / (totalCount - 1) * 0.5;
+          }
         }
       }
 
-      // 将两种模式所需的数据都准备好
       provinceDataMap.set(provinceName, {
-        cities: cityStatusMap,       // 用于 Tooltip
-        progress: provinceOwnProgress, // 用于 "独立染色" 模式
+        cities: cityStatusMap,
+        progress: provinceOwnProgress,
       });
     }
 
@@ -469,54 +475,73 @@ function App() {
   };
 
 
-   const handleMarkAllCities = async () => {
-    // 安全检查：确保用户已登录、城市数据已加载，并且功能没有在运行中
-    if (!user || !cityGeojsonData || isMarkingAll) {
-      toast.error("功能尚未准备好或正在操作中。");
-      return;
-    }
+// App.jsx (替换 handleMarkAllCities 函数)
 
-    // 弹窗确认，这是非常重要的一步，防止误操作
-    if (!window.confirm("【开发者测试功能】\n\n确定要将全国所有市都标记为“已抵达”吗？")) {
-      return;
-    }
+// --- 【新增】一个简单的延迟函数，用于在请求之间添加间隔 ---
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
-    // 1. 开始执行，将状态设为“正在标记中”
-    setIsMarkingAll(true);
+// --- 【新增 V4 - 最终稳定版】一键标记所有城市的测试功能 ---
+const handleMarkAllCities = async () => {
+  if (!user || !cityGeojsonData || !cityGeojsonData.features || isMarkingAll) {
+    toast.error("数据尚未准备好或正在操作中。");
+    return;
+  }
+  if (!window.confirm("【开发者测试功能】\n\n确定要将全国所有市都标记为“已抵达”吗？\n这将是一个缓慢的过程，请保持页面开启。")) {
+    return;
+  }
 
-    // 2. 准备要发送到数据库的数据
-    //    我们遍历所有城市的地理数据，为每个城市创建一个记录
-    const allCitiesPayload = cityGeojsonData.features.map(feature => ({
-      user_id: user.id,
-      city_name: feature.properties.name,
-      visit_date: new Date().toISOString().split('T')[0] // 统一使用今天的日期
-    }));
+  setIsMarkingAll(true);
+  toast.loading('开始标记所有城市...');
 
-    // 3. 使用 toast.promise 来显示操作进度，用户体验更好
-    const promise = supabase.from('visited_cities').upsert(allCitiesPayload, {
-      onConflict: 'user_id, city_name' // 如果城市已存在则更新，不存在则插入
-    });
+  // 1. 获取所有城市列表
+  const allCities = cityGeojsonData.features;
+  const totalCities = allCities.length;
+  let markedCount = 0;
 
-    toast.promise(promise, {
-      loading: '正在标记全国城市，请稍候...',
-      success: '所有城市标记成功！地图即将刷新。',
-      error: '标记失败，详情请查看控制台。'
-    });
-
-    // 4. 执行数据库操作
-    try {
-      const { error } = await promise;
-      if (error) throw error; // 如果有错误，则抛出
+  try {
+    // 2. 【核心修改】使用 for...of 循环，逐个处理每个城市
+    for (const feature of allCities) {
+      const cityName = feature.properties.name;
       
-      // 操作成功后，调用您已有的 fetchVisitedCities 函数来刷新地图
-      await fetchVisitedCities(); 
-    } catch (error) {
-      console.error("开发者功能“一键标记”失败:", error);
-    } finally {
-      // 5. 无论成功与否，最后都将状态恢复为“未在标记中”
-      setIsMarkingAll(false);
+      // 准备单个城市的请求数据
+      const singleCityPayload = {
+        user_id: user.id,
+        city_name: cityName,
+        visit_date: new Date().toISOString().split('T')[0]
+      };
+
+      // 3. 发送单个 upsert 请求
+      const { error } = await supabase
+        .from('visited_cities')
+        .upsert(singleCityPayload, { onConflict: 'user_id, city_name' });
+      
+      // 如果单个城市标记失败，则立即停止并报告
+      if (error) {
+        console.error(`标记城市 "${cityName}" 失败:`, error);
+        throw new Error(`标记城市 "${cityName}" 时出错`);
+      }
+
+      // 4. 更新进度
+      markedCount++;
+      toast.loading(`标记中 (${markedCount}/${totalCities}): ${cityName}`);
+
+      // 5. 【关键】在每次请求后，短暂延迟 50 毫秒
+      // 这给了服务器充分的喘息时间，是保证稳定性的核心
+      await delay(50); 
     }
-  };
+    
+    // 6. 所有城市处理完毕后，刷新数据并显示成功
+    await fetchVisitedCities();
+    toast.success('所有城市标记成功！地图已刷新。');
+
+  } catch (error) {
+    console.error("一键标记失败:", error);
+    toast.error(`操作中断: ${error.message || '请检查控制台获取详情。'}`);
+  } finally {
+    // 7. 无论结果如何，都恢复按钮状态
+    setIsMarkingAll(false);
+  }
+};
 
 
   if (!user) {
@@ -616,7 +641,11 @@ function App() {
       >
         <Stats
           visitedCount={visitedCities.size}
-          totalCount={cityGeojsonData ? cityGeojsonData.features.length : 0}
+          totalCount={
+            cityGeojsonData 
+            ? new Set(cityGeojsonData.features.map(f => f.properties.name)).size 
+            : 0
+          }
         />
         <div className="sidebar-content-wrapper open">
           {currentCityData && (
