@@ -31,6 +31,7 @@ function App() {
   const [visitedCities, setVisitedCities] = useState(new Map());
   const [cityLayers, setCityLayers] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false); // <--- 在这里添加新的 state
   const [currentCityData, setCurrentCityData] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
@@ -51,7 +52,7 @@ function App() {
   const rightColumnRef = useRef();
 
   // --- Hooks & 回调函数 ---
-  useOnClickOutside(rightColumnRef, () => setIsSidebarOpen(false), lightboxImage === null && !isCommentModalOpen);
+  // useOnClickOutside(rightColumnRef, () => setIsSidebarOpen(false), lightboxImage === null && !isCommentModalOpen);
 
   const fetchVisitedCities = useCallback(async () => {
     if (!user) return;
@@ -187,15 +188,18 @@ function App() {
     handleCityClick(cityName);
   };
 
+
   const handleCityClick = (cityName) => {
     const isVisited = visitedCities.has(cityName);
     const visitedData = visitedCities.get(cityName);
     const newCityData = { ...(visitedData || {}), name: cityName, isVisited };
     if (isSidebarOpen && currentCityData?.name === cityName) {
       setIsSidebarOpen(false);
+      setIsPanelExpanded(false); // <--- 点击同一个城市时，收起面板
     } else {
       setCurrentCityData(newCityData);
       setIsSidebarOpen(true);
+      setIsPanelExpanded(true); // <--- 点击新城市时，展开面板
     }
   };
 
@@ -531,12 +535,27 @@ function App() {
         </div>
       </div> {/* 关闭 .ui-top-left-cluster */}
 
-      <div className="ui-right-column" ref={rightColumnRef}>
+            {isSidebarOpen && (
+    <div 
+      className="ui-right-column modal-mode"
+      // 【核心逻辑修复】点击遮罩层时，直接关闭 Sidebar
+      onClick={() => setIsSidebarOpen(false)}
+    >
+      {/* 
+        我们将 ref 绑定到内容容器上。
+        【核心逻辑修复】点击内容本身时，调用 e.stopPropagation() 
+        来阻止事件冒泡到父级遮罩层，防止意外关闭。
+      */}
+      <div 
+        className="modal-content-container" 
+        ref={rightColumnRef} 
+        onClick={(e) => e.stopPropagation()}
+      >
         <Stats
           visitedCount={visitedCities.size}
           totalCount={cityGeojsonData ? cityGeojsonData.features.length : 0}
         />
-        <div className={`sidebar-content-wrapper ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-content-wrapper open">
           {currentCityData && (
             <Sidebar
               key={currentCityData.name}
@@ -549,6 +568,8 @@ function App() {
           )}
         </div>
       </div>
+    </div>
+  )}
 
       {lightboxImage && <ImageModal src={lightboxImage} onClose={handleCloseLightbox} />}
       <CommentModal
@@ -560,7 +581,7 @@ function App() {
       <NotificationModal
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        content={`📢\n- 添加了省级的缩放，可以通过图层按钮关闭\n- 省级也有两套配色，一套水位设计，一套浓度设计`}
+        content={`📢\n- 添加了省级的缩放，可以通过图层按钮关闭\n- 省级也有两套配色，一套水位设计，一套浓度设计\n- 为移动端做了简单的适配...至少可以正常查看了`}
       />
     </div>
   );

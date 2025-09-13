@@ -19,7 +19,7 @@ const CommentIcon = () => (
 
 const PHOTO_CATEGORIES = [
   { id: 'scenery', name: '风景', icon: '/icons/scenery.svg' },
-  { id: 'friends', name: '朋友', icon: '/icons/friends.svg' },
+  { id: 'friends', name: '亲友', icon: '/icons/friends.svg' },
   { id: 'food', name: '美食', icon: '/icons/food.svg' },
   { id: 'lover', name: '恋人', icon: '/icons/lover.svg' },
 ];

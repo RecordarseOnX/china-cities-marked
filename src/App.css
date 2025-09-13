@@ -241,3 +241,75 @@
   border-radius: 2px;
 }
 
+/* ================================================================= */
+/* ========== 移动端适配样式 (V9 - 终极重置修正版) ========== */
+/* ================================================================= */
+
+@media (max-width: 768px) {
+
+  /* 1. 顶部栏样式 (保持不变) */
+  .ui-top-left-cluster {
+    top: 0; left: 0; right: 0; width: auto; padding: 10px;
+    background-color: var(--panel-color); border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md); border-radius: 0; z-index: 1001;
+  }
+  #searchContainer { width: 100%; }
+  .user-info-bar { flex-grow: 1; justify-content: center; }
+  .theme-title-container { width: 100%; justify-content: center; }
+
+  /* 2. 在移动端默认隐藏桌面端的右侧栏 (保持不变) */
+  .ui-right-column {
+    display: none;
+  }
+
+  /* 3. 【终极修复】当 modal-mode 激活时，完全重置所有桌面端样式 */
+  .ui-right-column.modal-mode {
+    /* --- A. 完全重置桌面样式 --- */
+    position: fixed;
+    display: block;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0; /* <<< 这就是解决问题的关键！ */
+    background-color: transparent; /* 先重置背景 */
+    border-radius: 0;
+    box-shadow: none;
+    gap: 0;
+    pointer-events: auto;
+
+    /* --- B. 应用新的遮罩层样式 --- */
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1999;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  /* 4. 内容容器 (保持不变，因为它的居中方案是正确的) */
+  .ui-right-column.modal-mode .modal-content-container {
+    box-sizing: border-box;
+    display: flex; flex-direction: column;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90vw;
+    max-width: 380px;
+    max-height: 80vh;
+    background-color: var(--panel-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    animation: zoomInTranslate 0.3s ease-out;
+  }
+
+  /* 5. 其他样式 (保持不变) */
+  .ui-right-column.modal-mode .sidebar-content-wrapper { flex-grow: 1; overflow-y: auto; }
+  .ui-right-column.modal-mode #stats { position: static; width: auto; flex-shrink: 0; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes zoomInTranslate {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @media (min-width: 769px) { .modal-content-container { display: contents; } }
+}
