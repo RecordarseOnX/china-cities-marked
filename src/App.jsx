@@ -42,6 +42,7 @@ function App() {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isZoomSwitchEnabled, setIsZoomSwitchEnabled] = useState(true);
   const [mapSvgElement, setMapSvgElement] = useState(null);
+  const [isMarkingAll, setIsMarkingAll] = useState(false); // <--- 在这里添加这行代码
   
   // 地图相关 State
   const [cityGeojsonData, setCityGeojsonData] = useState(null);
@@ -468,6 +469,56 @@ function App() {
   };
 
 
+   const handleMarkAllCities = async () => {
+    // 安全检查：确保用户已登录、城市数据已加载，并且功能没有在运行中
+    if (!user || !cityGeojsonData || isMarkingAll) {
+      toast.error("功能尚未准备好或正在操作中。");
+      return;
+    }
+
+    // 弹窗确认，这是非常重要的一步，防止误操作
+    if (!window.confirm("【开发者测试功能】\n\n确定要将全国所有市都标记为“已抵达”吗？")) {
+      return;
+    }
+
+    // 1. 开始执行，将状态设为“正在标记中”
+    setIsMarkingAll(true);
+
+    // 2. 准备要发送到数据库的数据
+    //    我们遍历所有城市的地理数据，为每个城市创建一个记录
+    const allCitiesPayload = cityGeojsonData.features.map(feature => ({
+      user_id: user.id,
+      city_name: feature.properties.name,
+      visit_date: new Date().toISOString().split('T')[0] // 统一使用今天的日期
+    }));
+
+    // 3. 使用 toast.promise 来显示操作进度，用户体验更好
+    const promise = supabase.from('visited_cities').upsert(allCitiesPayload, {
+      onConflict: 'user_id, city_name' // 如果城市已存在则更新，不存在则插入
+    });
+
+    toast.promise(promise, {
+      loading: '正在标记全国城市，请稍候...',
+      success: '所有城市标记成功！地图即将刷新。',
+      error: '标记失败，详情请查看控制台。'
+    });
+
+    // 4. 执行数据库操作
+    try {
+      const { error } = await promise;
+      if (error) throw error; // 如果有错误，则抛出
+      
+      // 操作成功后，调用您已有的 fetchVisitedCities 函数来刷新地图
+      await fetchVisitedCities(); 
+    } catch (error) {
+      console.error("开发者功能“一键标记”失败:", error);
+    } finally {
+      // 5. 无论成功与否，最后都将状态恢复为“未在标记中”
+      setIsMarkingAll(false);
+    }
+  };
+
+
   if (!user) {
     return <Auth onLoginSuccess={setUser} />;
   }
@@ -508,6 +559,18 @@ function App() {
           <button onClick={handleExportPDF} className="export-button" disabled={isExporting}>
             {isExporting ? '生成中...' : '导出'}
           </button>
+          
+          {/* 
+            【核心修改】
+            这是一个条件渲染：只有当登录用户的 username 是 'onxSuisui' 时，
+            才会显示这个 "一键标记所有" 的按钮。
+          */}
+          {user && user.username === 'onxSuisui' && (
+            <button onClick={handleMarkAllCities} className="test-button" disabled={isMarkingAll}>
+              {isMarkingAll ? '标记中...' : '一键标记所有'}
+            </button>
+          )}
+
           <button onClick={() => setIsNotificationOpen(true)} className="notification-button">
             通知
           </button>
