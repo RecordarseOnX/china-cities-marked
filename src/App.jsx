@@ -82,42 +82,34 @@ function App() {
       localStorage.setItem('user', JSON.stringify(user));
       fetchVisitedCities();
       
+      // 【核心修改】同时加载三个文件，包括我们的“答案文件”
       Promise.all([
         fetch('/中国_市.geojson').then(res => res.json()),
-        fetch('/中国_省.geojson').then(res => res.json())
-      ]).then(([cityData, provinceData]) => {
+        fetch('/中国_省.geojson').then(res => res.json()),
+        fetch('/province-city-map.json').then(res => res.json()) // <-- 新增
+      ])
+      .then(([cityData, provinceData, provinceCityMapData]) => { // <-- 接收答案
         setCityGeojsonData(cityData);
         setProvinceGeojsonData(provinceData);
 
-        console.log("开始自动计算省市映射关系...");
-        const newMap = new Map();
-        if (!cityData || !provinceData) return;
-
-        for (const cityFeature of cityData.features) {
-          const cityCentroid = centroid(cityFeature);
-          for (const provinceFeature of provinceData.features) {
-            if (booleanPointInPolygon(cityCentroid, provinceFeature)) {
-              const provinceName = provinceFeature.properties.name;
-              const cityName = cityFeature.properties.name;
-              if (!newMap.has(provinceName)) newMap.set(provinceName, []);
-              newMap.get(provinceName).push(cityName);
-              break;
-            }
-          }
-        }
+        // 【核心修改】直接使用“答案”，移除所有耗时的计算！
+        console.log("正在从预计算文件加载省市映射...");
+        const newMap = new Map(provinceCityMapData); // <-- 一行代码搞定！
         setProvinceToCitiesMap(newMap);
-        console.log("映射表构建完成:", newMap);
+    
+        console.log("映射表加载完成:", newMap);
+      })
+      .catch(error => {
+        // 添加错误处理，增强健壮性
+        console.error("加载地图核心数据失败:", error);
+        toast.error("加载地图数据失败，请刷新页面重试。");
       });
+
     } else {
       localStorage.removeItem('user');
     }
   }, [user, fetchVisitedCities]);
 
-  // --- 【核心修改】计算全国统一进度和全局水位线 ---
-// App.jsx (大约在第114行)
-
-  // --- 【核心修改】计算全国统一进度、全局水位线，并为每个省份附加其独立的进度信息 ---
-// App.jsx (大约在第114行)
 
   const { globalWaterLat, provinceDataMap } = useMemo(() => {
     if (!provinceGeojsonData?.features || !cityGeojsonData?.features || provinceToCitiesMap.size === 0) {
@@ -673,7 +665,7 @@ const handleMarkAllCities = async () => {
       <NotificationModal
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        content={`📢\n- 添加了省级的缩放，可以通过图层按钮关闭\n- 省级也有两套配色，一套水位设计，一套浓度设计\n- 为移动端做了简单的适配...至少可以正常查看了`}
+        content={`📢\n- 添加了省级的缩放，可以通过图层按钮关闭\n- 省级也有两套配色，一套水位设计，一套浓度设计\n- 为移动端做了简单的适配...至少可以正常查看了\n- 优化了加载速度，并延长了用户名的长度`}
       />
     </div>
   );
