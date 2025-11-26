@@ -1,7 +1,7 @@
 // --- 1. Imports ---
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import useOnClickOutside from './hooks/useOnClickOutside';
+// import useOnClickOutside from './hooks/useOnClickOutside'; // 如果没用到可以注释掉
 import MapComponent from './components/Map';
 import Search from './components/Search';
 import Stats from './components/Stats';
@@ -12,16 +12,17 @@ import ImageModal from './components/ImageModal';
 import CommentModal from './components/CommentModal';
 import NotificationModal from './components/NotificationModal';
 import './App.css';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+
+// --- 移除 PDF 相关库 (jsPDF, html2canvas) ---
+
 import L from 'leaflet';
 import toast, { Toaster } from 'react-hot-toast';
 import { scaleSequential } from 'd3-scale';
 import { interpolateSinebow } from 'd3-scale-chromatic';
-// 引入 Turf.js
-import { centroid } from '@turf/turf';
-import { booleanPointInPolygon } from '@turf/turf';
 import * as turf from '@turf/turf'; 
+
+// --- 引入 TopoJSON 转换库 ---
+import * as topojson from 'topojson-client';
 
 // --- 2. 主组件 ---
 function App() {
@@ -31,18 +32,19 @@ function App() {
   const [visitedCities, setVisitedCities] = useState(new Map());
   const [cityLayers, setCityLayers] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false); // <--- 在这里添加新的 state
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [currentCityData, setCurrentCityData] = useState(null);
-  const [isExporting, setIsExporting] = useState(false);
+  
+  // --- 移除 isExporting 和 progress State ---
+
   const [lightboxImage, setLightboxImage] = useState(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [commentingCity, setCommentingCity] = useState(null);
   const [colorMode, setColorMode] = useState('colorful');
-  const [progress, setProgress] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isZoomSwitchEnabled, setIsZoomSwitchEnabled] = useState(true);
   const [mapSvgElement, setMapSvgElement] = useState(null);
-  const [isMarkingAll, setIsMarkingAll] = useState(false); // <--- 在这里添加这行代码
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
   
   // 地图相关 State
   const [cityGeojsonData, setCityGeojsonData] = useState(null);
@@ -51,9 +53,6 @@ function App() {
   const [provinceToCitiesMap, setProvinceToCitiesMap] = useState(new Map());
   
   const rightColumnRef = useRef();
-
-  // --- Hooks & 回调函数 ---
-  // useOnClickOutside(rightColumnRef, () => setIsSidebarOpen(false), lightboxImage === null && !isCommentModalOpen);
 
   const fetchVisitedCities = useCallback(async () => {
     if (!user) return;
@@ -76,31 +75,37 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // 主数据加载和省市映射计算 Effect
+  // 主数据加载 (使用 TopoJSON)
   useEffect(() => {
     if (user) {
       localStorage.setItem('user', JSON.stringify(user));
       fetchVisitedCities();
       
-      // 【核心修改】同时加载三个文件，包括我们的“答案文件”
+      // 【核心修改】加载 TopoJSON 文件
       Promise.all([
-        fetch('/中国_市.geojson').then(res => res.json()),
-        fetch('/中国_省.geojson').then(res => res.json()),
-        fetch('/province-city-map.json').then(res => res.json()) // <-- 新增
+        fetch('/中国_市.json').then(res => res.json()), // 确保文件名对应
+        fetch('/中国_省.json').then(res => res.json()),
+        fetch('/province-city-map.json').then(res => res.json())
       ])
-      .then(([cityData, provinceData, provinceCityMapData]) => { // <-- 接收答案
-        setCityGeojsonData(cityData);
-        setProvinceGeojsonData(provinceData);
+      .then(([cityTopoData, provinceTopoData, provinceCityMapData]) => {
+        // --- TopoJSON 转换为 GeoJSON ---
+        // 自动获取 objects 中的第一个 key (例如 "china_cities" 或 "map")
+        const cityKey = Object.keys(cityTopoData.objects)[0];
+        const cityGeoJSON = topojson.feature(cityTopoData, cityTopoData.objects[cityKey]);
 
-        // 【核心修改】直接使用“答案”，移除所有耗时的计算！
+        const provinceKey = Object.keys(provinceTopoData.objects)[0];
+        const provinceGeoJSON = topojson.feature(provinceTopoData, provinceTopoData.objects[provinceKey]);
+
+        setCityGeojsonData(cityGeoJSON);
+        setProvinceGeojsonData(provinceGeoJSON);
+
         console.log("正在从预计算文件加载省市映射...");
-        const newMap = new Map(provinceCityMapData); // <-- 一行代码搞定！
+        const newMap = new Map(provinceCityMapData);
         setProvinceToCitiesMap(newMap);
     
         console.log("映射表加载完成:", newMap);
       })
       .catch(error => {
-        // 添加错误处理，增强健壮性
         console.error("加载地图核心数据失败:", error);
         toast.error("加载地图数据失败，请刷新页面重试。");
       });
@@ -116,15 +121,14 @@ function App() {
       return { globalWaterLat: 20, provinceDataMap: new Map() };
     }
 
-    // 1. "全国水位" 模式计算 (保持不变)
-    const totalCitiesInChina = new Set(cityGeojsonData.features.map(f => f.properties.name)).size; // 使用去重后的总数
+    const totalCitiesInChina = new Set(cityGeojsonData.features.map(f => f.properties.name)).size;
     const visitedCitiesCount = visitedCities.size;
     const nationwideProgress = totalCitiesInChina > 0 ? visitedCitiesCount / totalCitiesInChina : 0;
     const START_LAT = 20;
+    // 使用 turf 计算 bbox
     const NORTHERNMOST_LAT = Math.max(...provinceGeojsonData.features.map(f => turf.bbox(f)[3]));
     const globalWaterLat = START_LAT + nationwideProgress * (NORTHERNMOST_LAT - START_LAT);
 
-    // 2. "独立染色" 模式和 Tooltip 计算 (核心修改)
     const provinceDataMap = new Map();
     for (const [provinceName, cities] of provinceToCitiesMap.entries()) {
       const cityStatusMap = new Map(cities.map(cityName => [cityName, visitedCities.has(cityName)]));
@@ -132,13 +136,10 @@ function App() {
       const totalCount = cityStatusMap.size;
       
       let provinceOwnProgress = 0;
-      if (totalCount > 0) { // 确保省份内有城市
-        // 【核心修正】
-        // 如果省份只有一个城市 (如直辖市) 且已被访问，进度直接为 100%
+      if (totalCount > 0) {
         if (totalCount === 1 && visitedCount === 1) {
-          provinceOwnProgress = 1; // 1 代表 100%
+          provinceOwnProgress = 1; 
         } 
-        // 否则，使用您原有的 "第一个50%" 逻辑
         else if (visitedCount >= 1) {
           provinceOwnProgress = 0.5;
           if (totalCount > 1) {
@@ -159,8 +160,6 @@ function App() {
 
   const handleMapLoad = useCallback((map) => {
     setMapInstance(map);
-
-    // 正确获取 SVG 容器
     const svg = map.getPanes().overlayPane.querySelector('svg');
     if (svg) setMapSvgElement(svg);
   }, []);
@@ -187,18 +186,17 @@ function App() {
     handleCityClick(cityName);
   };
 
-
   const handleCityClick = (cityName) => {
     const isVisited = visitedCities.has(cityName);
     const visitedData = visitedCities.get(cityName);
     const newCityData = { ...(visitedData || {}), name: cityName, isVisited };
     if (isSidebarOpen && currentCityData?.name === cityName) {
       setIsSidebarOpen(false);
-      setIsPanelExpanded(false); // <--- 点击同一个城市时，收起面板
+      setIsPanelExpanded(false);
     } else {
       setCurrentCityData(newCityData);
       setIsSidebarOpen(true);
-      setIsPanelExpanded(true); // <--- 点击新城市时，展开面板
+      setIsPanelExpanded(true);
     }
   };
 
@@ -248,7 +246,6 @@ function App() {
 
       if (error) throw error;
 
-      // 仅更新 currentCityData 的 comment 和 rating，保留 photos
       setCurrentCityData(prev => prev && prev.name === cityName ? {
         ...prev,
         comment: comment || prev.comment,
@@ -262,284 +259,67 @@ function App() {
     }
   };
   
-  const handleExportPDF = async () => {
-    if (!window.confirm("您确定要将当前的旅游地图导出为 PDF 吗？")) return;
+  // --- 移除 handleExportPDF 函数 ---
 
-    if (!cityGeojsonData || !cityGeojsonData.features?.length) {
-      toast.error("地图数据尚未加载或为空，请稍候再试");
+  // 延迟函数
+  const delay = ms => new Promise(res => setTimeout(res, ms));
+
+  // 一键标记所有城市
+  const handleMarkAllCities = async () => {
+    if (!user || !cityGeojsonData || !cityGeojsonData.features || isMarkingAll) {
+      toast.error("数据尚未准备好或正在操作中。");
+      return;
+    }
+    if (!window.confirm("【开发者测试功能】\n\n确定要将全国所有市都标记为“已抵达”吗？\n这将是一个缓慢的过程，请保持页面开启。")) {
       return;
     }
 
-    setIsExporting(true);
-    setProgress(0);
+    setIsMarkingAll(true);
+    toast.loading('开始标记所有城市...');
+
+    const allCities = cityGeojsonData.features;
+    const totalCities = allCities.length;
+    let markedCount = 0;
 
     try {
-      const sortedCities = Array.from(visitedCities.values())
-        .filter(city => city.photos && city.photos.length > 0)
-        .sort((a, b) => {
-          const dateA = a.visit_date ? new Date(a.visit_date) : new Date(0);
-          const dateB = b.visit_date ? new Date(b.visit_date) : new Date(0);
-          return dateB - dateA; // 降序
-        });
-
-      if (sortedCities.length === 0) throw new Error("没有包含照片的已标记城市可供导出");
-
-      // 生成地图封面
-      let mapImageDataUrl;
-      const tempContainer = document.createElement('div');
-      tempContainer.style.cssText = 'position: absolute; left: -9999px; width: 1200px; height: 800px;';
-      document.body.appendChild(tempContainer);
-
-      try {
-        const tempMap = L.map(tempContainer, { zoomControl: false, attributionControl: false, preferCanvas: true });
-
-        // 颜色处理
-        const lineRgb = theme === 'dark' ? '90, 90, 90' : '163, 168, 175';
-        const colorScale = scaleSequential(interpolateSinebow);
-        const getColor = (name) => {
-          let hash = 0;
-          for (let i = 0; i < name.length; i++) {
-            hash = name.charCodeAt(i) + ((hash << 5) - hash);
-            hash |= 0;
-          }
-          return colorScale((Math.abs(hash) % 1000) / 1000);
+      for (const feature of allCities) {
+        const cityName = feature.properties.name;
+        
+        const singleCityPayload = {
+          user_id: user.id,
+          city_name: cityName,
+          visit_date: new Date().toISOString().split('T')[0]
         };
 
-        const selectedCitiesSet = new Set(visitedCities.keys());
-        const geojsonLayer = L.geoJSON(cityGeojsonData, {
-          style: f => ({
-            color: `rgb(${lineRgb})`,
-            weight: 0.6,
-            fillOpacity: selectedCitiesSet.has(f.properties.name) ? 0.6 : 0,
-            fillColor: colorMode === 'single' ? '#48cae4' : getColor(f.properties.name)
-          })
-        }).addTo(tempMap);
+        const { error } = await supabase
+          .from('visited_cities')
+          .upsert(singleCityPayload, { onConflict: 'user_id, city_name' });
+        
+        if (error) {
+          console.error(`标记城市 "${cityName}" 失败:`, error);
+          throw new Error(`标记城市 "${cityName}" 时出错`);
+        }
 
-        tempMap.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
-        await new Promise(res => setTimeout(res, 500));
-
-        const canvas = await html2canvas(tempContainer, {
-          useCORS: true,
-          logging: false,
-          backgroundColor: theme === 'dark' ? 'rgb(30, 32, 33)' : 'rgb(247, 247, 247)'
-        });
-        mapImageDataUrl = canvas.toDataURL('image/png');
-      } finally {
-        document.body.removeChild(tempContainer);
+        markedCount++;
+        toast.loading(`标记中 (${markedCount}/${totalCities}): ${cityName}`);
+        await delay(50); 
       }
+      
+      await fetchVisitedCities();
+      toast.success('所有城市标记成功！地图已刷新。');
 
-      // 创建 PDF
-      const doc = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 15;
-      const headerOffset = 20;
-      const contentWidth = pageWidth - margin * 2;
-      const safeContentHeight = pageHeight - margin * 2;
-
-      // 加载中文字体
-      try {
-        const fontResponse = await fetch('/NotoSansSC-Regular.ttf');
-        if (fontResponse.ok) {
-          const fontBlob = await fontResponse.blob();
-          const reader = new FileReader();
-          const fontBase64 = await new Promise((res, rej) => {
-            reader.onloadend = () => res(reader.result.split(',')[1]);
-            reader.onerror = rej;
-            reader.readAsDataURL(fontBlob);
-          });
-          doc.addFileToVFS('NotoSansSC-Regular.ttf', fontBase64);
-          doc.addFont('NotoSansSC-Regular.ttf', 'NotoSansSC', 'normal');
-          doc.setFont('NotoSansSC', 'normal');
-        }
-      } catch (e) {
-        console.warn("自定义字体加载失败", e);
-      }
-
-      const addHeaderAndFooter = (docInstance) => {
-        const pageCount = docInstance.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-          docInstance.setPage(i);
-          docInstance.setFontSize(9);
-          docInstance.setTextColor(150);
-          docInstance.text(`${user.username}的城市足迹`, margin, 10);
-          docInstance.text(`第 ${i} 页 / 共 ${pageCount} 页`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-        }
-      };
-
-      // ===== 封面 =====
-      doc.setFontSize(28);
-      doc.setTextColor(40);
-      doc.text("我的城市足迹", pageWidth / 2, 100, { align: 'center' });
-      doc.setFontSize(16);
-      doc.text(`- ${user.username} -`, pageWidth / 2, 115, { align: 'center' });
-
-      const mapProps = doc.getImageProperties(mapImageDataUrl);
-      const mapAspectRatio = mapProps.width / mapProps.height;
-      const mapWidth = pageWidth - margin * 2;
-      const mapHeight = mapWidth / mapAspectRatio;
-      doc.addImage(mapImageDataUrl, 'PNG', margin, 130, mapWidth, mapHeight);
-
-      // ===== 城市详情页 =====
-      for (let i = 0; i < sortedCities.length; i++) {
-        const city = sortedCities[i];
-        doc.addPage();
-        let y = margin + headerOffset;
-
-        doc.setFontSize(20);
-        doc.setTextColor('#1f2937');
-        doc.text(city.city_name, margin, y);
-
-        if (city.visit_date) {
-          doc.setFontSize(14);
-          doc.setTextColor('#1f2937');
-          doc.text(city.visit_date, pageWidth - margin, y, { align: 'right' });
-        }
-        y += 8;
-
-        if (city.rating > 0) {
-          doc.setFontSize(14);
-          doc.setTextColor('#f59e0b');
-          const stars = '★'.repeat(city.rating) + '☆'.repeat(10 - city.rating);
-          doc.text(stars, margin, y);
-          y += 8;
-        }
-
-        if (city.comment) {
-          doc.setFontSize(13);
-          doc.setTextColor('#1f2937');
-          const commentLines = doc.splitTextToSize(city.comment, contentWidth);
-          doc.text(commentLines, margin, y, { lineHeightFactor: 1.5 });
-          y += commentLines.length * 5 * 1.1 - 2;
-        }
-
-        doc.setDrawColor(230);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 5;
-
-        // 图片网格
-        if (city.photos && city.photos.length > 0) {
-          const gridCols = 2;
-          const gridRows = 2;
-          const gridWidth = (contentWidth - 5) / gridCols;
-          const gridHeight = (safeContentHeight - y - 10) / gridRows;
-
-          for (let j = 0; j < Math.min(city.photos.length, 4); j++) {
-            const photo = city.photos[j];
-            const props = await doc.getImageProperties(photo.photo_url);
-            const imgAspect = props.width / props.height;
-            const boxAspect = gridWidth / gridHeight;
-
-            let drawWidth, drawHeight;
-            if (imgAspect > boxAspect) {
-              drawWidth = gridWidth;
-              drawHeight = gridWidth / imgAspect;
-            } else {
-              drawHeight = gridHeight;
-              drawWidth = gridHeight * imgAspect;
-            }
-
-            const col = j % gridCols;
-            const row = Math.floor(j / gridCols);
-            const offsetX = margin + col * (gridWidth + 5) + (gridWidth - drawWidth) / 2;
-            const offsetY = y + row * (gridHeight + 5) + (gridHeight - drawHeight) / 2;
-
-            doc.addImage(photo.photo_url, 'JPEG', offsetX, offsetY, drawWidth, drawHeight);
-          }
-          y += gridHeight * gridRows + 10;
-        }
-
-        // 更新进度条
-        setProgress(Math.round(((i + 1) / sortedCities.length) * 100));
-        await new Promise(res => setTimeout(res, 50));
-      }
-
-      addHeaderAndFooter(doc);
-      doc.save(`${user.username}_城市足迹_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
-      toast.success("PDF已成功生成！");
-    } catch (err) {
-      console.error(err);
-      toast.error("导出失败：" + err.message);
+    } catch (error) {
+      console.error("一键标记失败:", error);
+      toast.error(`操作中断: ${error.message || '请检查控制台获取详情。'}`);
     } finally {
-      setIsExporting(false);
-      setProgress(0);
+      setIsMarkingAll(false);
     }
   };
-
-
-// App.jsx (替换 handleMarkAllCities 函数)
-
-// --- 【新增】一个简单的延迟函数，用于在请求之间添加间隔 ---
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
-// --- 【新增 V4 - 最终稳定版】一键标记所有城市的测试功能 ---
-const handleMarkAllCities = async () => {
-  if (!user || !cityGeojsonData || !cityGeojsonData.features || isMarkingAll) {
-    toast.error("数据尚未准备好或正在操作中。");
-    return;
-  }
-  if (!window.confirm("【开发者测试功能】\n\n确定要将全国所有市都标记为“已抵达”吗？\n这将是一个缓慢的过程，请保持页面开启。")) {
-    return;
-  }
-
-  setIsMarkingAll(true);
-  toast.loading('开始标记所有城市...');
-
-  // 1. 获取所有城市列表
-  const allCities = cityGeojsonData.features;
-  const totalCities = allCities.length;
-  let markedCount = 0;
-
-  try {
-    // 2. 【核心修改】使用 for...of 循环，逐个处理每个城市
-    for (const feature of allCities) {
-      const cityName = feature.properties.name;
-      
-      // 准备单个城市的请求数据
-      const singleCityPayload = {
-        user_id: user.id,
-        city_name: cityName,
-        visit_date: new Date().toISOString().split('T')[0]
-      };
-
-      // 3. 发送单个 upsert 请求
-      const { error } = await supabase
-        .from('visited_cities')
-        .upsert(singleCityPayload, { onConflict: 'user_id, city_name' });
-      
-      // 如果单个城市标记失败，则立即停止并报告
-      if (error) {
-        console.error(`标记城市 "${cityName}" 失败:`, error);
-        throw new Error(`标记城市 "${cityName}" 时出错`);
-      }
-
-      // 4. 更新进度
-      markedCount++;
-      toast.loading(`标记中 (${markedCount}/${totalCities}): ${cityName}`);
-
-      // 5. 【关键】在每次请求后，短暂延迟 50 毫秒
-      // 这给了服务器充分的喘息时间，是保证稳定性的核心
-      await delay(50); 
-    }
-    
-    // 6. 所有城市处理完毕后，刷新数据并显示成功
-    await fetchVisitedCities();
-    toast.success('所有城市标记成功！地图已刷新。');
-
-  } catch (error) {
-    console.error("一键标记失败:", error);
-    toast.error(`操作中断: ${error.message || '请检查控制台获取详情。'}`);
-  } finally {
-    // 7. 无论结果如何，都恢复按钮状态
-    setIsMarkingAll(false);
-  }
-};
 
 
   if (!user) {
     return <Auth onLoginSuccess={setUser} />;
   }
-
 
   return (
     <div id="app-container">
@@ -562,8 +342,8 @@ const handleMarkAllCities = async () => {
         onCityClick={handleCityClick}
         onProvinceClick={handleProvinceClick}
         colorMode={colorMode}
-        provinceProgress={provinceDataMap} // <-- 使用新的变量名
-        globalWaterLat={globalWaterLat}              // <-- 新增：传递全局水位线
+        provinceProgress={provinceDataMap}
+        globalWaterLat={globalWaterLat}
         onMapLoad={handleMapLoad}
         isZoomSwitchEnabled={isZoomSwitchEnabled}
       />
@@ -573,15 +353,8 @@ const handleMarkAllCities = async () => {
           <span>{user.username}</span>
           <span className="separator">·</span>
           <button onClick={handleLogout} className="logout-button">退出</button>
-          <button onClick={handleExportPDF} className="export-button" disabled={isExporting}>
-            {isExporting ? '生成中...' : '导出'}
-          </button>
+          {/* 移除导出按钮 */}
           
-          {/* 
-            【核心修改】
-            这是一个条件渲染：只有当登录用户的 username 是 'onxSuisui' 时，
-            才会显示这个 "一键标记所有" 的按钮。
-          */}
           {user && user.username === 'onxSuisui' && (
             <button onClick={handleMarkAllCities} className="test-button" disabled={isMarkingAll}>
               {isMarkingAll ? '标记中...' : '一键标记所有'}
@@ -605,55 +378,44 @@ const handleMarkAllCities = async () => {
             toggleZoomSwitch={toggleZoomSwitch}
           />
           <span className="inline-title">因为路就在脚下</span>
-
-          {isExporting && (
-            <div className="pdf-progress-container">
-              <progress value={progress} max={100} className="pdf-progress-bar" />
-              <span className="pdf-progress-text">{progress}%</span>
-            </div>
-          )}
+          
+          {/* 移除进度条显示 */}
         </div>
-      </div> {/* 关闭 .ui-top-left-cluster */}
+      </div> 
 
-            {isSidebarOpen && (
-    <div 
-      className="ui-right-column modal-mode"
-      // 【核心逻辑修复】点击遮罩层时，直接关闭 Sidebar
-      onClick={() => setIsSidebarOpen(false)}
-    >
-      {/* 
-        我们将 ref 绑定到内容容器上。
-        【核心逻辑修复】点击内容本身时，调用 e.stopPropagation() 
-        来阻止事件冒泡到父级遮罩层，防止意外关闭。
-      */}
-      <div 
-        className="modal-content-container" 
-        ref={rightColumnRef} 
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Stats
-          visitedCount={visitedCities.size}
-          totalCount={
-            cityGeojsonData 
-            ? new Set(cityGeojsonData.features.map(f => f.properties.name)).size 
-            : 0
-          }
-        />
-        <div className="sidebar-content-wrapper open">
-          {currentCityData && (
-            <Sidebar
-              key={currentCityData.name}
-              cityData={currentCityData}
-              onSave={handleSaveCity}
-              onUnmark={handleUnmarkCity}
-              onImageClick={handleImageClick}
-              onCommentClick={handleCommentClick}
+      {isSidebarOpen && (
+        <div 
+          className="ui-right-column modal-mode"
+          onClick={() => setIsSidebarOpen(false)}
+        >
+          <div 
+            className="modal-content-container" 
+            ref={rightColumnRef} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Stats
+              visitedCount={visitedCities.size}
+              totalCount={
+                cityGeojsonData 
+                ? new Set(cityGeojsonData.features.map(f => f.properties.name)).size 
+                : 0
+              }
             />
-          )}
+            <div className="sidebar-content-wrapper open">
+              {currentCityData && (
+                <Sidebar
+                  key={currentCityData.name}
+                  cityData={currentCityData}
+                  onSave={handleSaveCity}
+                  onUnmark={handleUnmarkCity}
+                  onImageClick={handleImageClick}
+                  onCommentClick={handleCommentClick}
+                />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  )}
+      )}
 
       {lightboxImage && <ImageModal src={lightboxImage} onClose={handleCloseLightbox} />}
       <CommentModal
@@ -665,7 +427,7 @@ const handleMarkAllCities = async () => {
       <NotificationModal
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        content={`📢\n- 添加了省级的缩放，可以通过图层按钮关闭\n- 省级也有两套配色，一套水位设计，一套浓度设计\n- 为移动端做了简单的适配...至少可以正常查看了\n- 优化了加载速度，并延长了用户名的长度`}
+        content={`📢\n- 优化了数据加载速度 (TopoJSON)\n- 优化了数据源\n- 去掉了无趣的导出功能`}
       />
     </div>
   );

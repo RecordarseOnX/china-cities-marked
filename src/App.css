@@ -20,11 +20,6 @@
   flex-wrap: wrap;       /* 允许在空间不足时换行 */
 }
 
-/* 如果导出进度条出现，让它单独占一行 */
-.pdf-progress {
-  width: 100%;
-}
-
 /* --- 用户信息栏 --- */
 .user-info-bar {
   background: var(--panel-color);
@@ -116,15 +111,14 @@
   background-color: rgba(59, 130, 246, 0.1);
 }
 
-
-/* --- 【问题1 修正】调整按钮和标题的容器 --- */
+/* --- 调整按钮和标题的容器 --- */
 .theme-title-container {
   display: flex;
   align-items: center;
   gap: 10px; /* 减小间隙，与其他控件保持一致 */
 }
 
-/* --- 【问题2 修正】为标题添加背景和边框 --- */
+/* --- 标题样式 --- */
 .inline-title {
   height: 40px; /* 高度与其他控件统一 */
   padding: 0 16px; /* 左右内边距，让盒子比文字宽 */
@@ -210,36 +204,6 @@
 .leaflet-tooltip::before { display: none !important; }
 .leaflet-container *:focus { outline: none !important; }
 
-.pdf-progress-bar {
-  width: 60px;     /* 更小的宽度 */
-  height: 4px;     /* 更小的高度 */
-  border-radius: 2px;
-  overflow: hidden;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-/* Chrome/Edge/Safari */
-.pdf-progress-bar::-webkit-progress-bar {
-  background-color: var(--border-color);
-  border-radius: 2px;
-}
-.pdf-progress-bar::-webkit-progress-value {
-  background-color: #007acc; /* VSCode 蓝色 */
-  border-radius: 2px;
-}
-
-/* Firefox */
-.pdf-progress-bar::-moz-progress-bar {
-  background-color: #007acc;
-  border-radius: 2px;
-}
-
-/* IE/Edge (老版) */
-.pdf-progress-bar::-ms-fill {
-  background-color: #007acc;
-  border-radius: 2px;
-}
 
 /* ================================================================= */
 /* ========== 移动端适配样式 (V9 - 终极重置修正版) ========== */
